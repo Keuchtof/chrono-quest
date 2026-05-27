@@ -37,7 +37,13 @@ export function useStore() {
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>  (() => load('cq_timer',    null))
   const [settings,    setSettings]    = useState<Settings>            (() => {
     const stored = load<Partial<Settings>>('cq_settings', {})
-    return { ...DEFAULT_SETTINGS, ...stored }
+    return {
+      ...DEFAULT_SETTINGS,
+      ...stored,
+      // Garantit que les dimensions ont toujours une valeur non-vide
+      configurations: stored.configurations?.length ? stored.configurations : DEFAULT_SETTINGS.configurations,
+      postures:       stored.postures?.length       ? stored.postures       : DEFAULT_SETTINGS.postures,
+    }
   })
 
   useEffect(() => { save('cq_blocs',    blocs)       }, [blocs])
