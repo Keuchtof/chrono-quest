@@ -102,6 +102,12 @@ export default function JourTab({ store, now }: Props) {
   const nowDate      = new Date()
   const calIsCurrentMonth = calYear === nowDate.getFullYear() && calMonth === nowDate.getMonth()
 
+  // Blocs that have at least one session this calendar month (for legend)
+  const calMonthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-`
+  const calActiveBlocs = store.blocs.filter(b =>
+    store.sessions.some(s => s.blocId === b.id && s.date.startsWith(calMonthPrefix)),
+  )
+
   function getDominantBloc(dateStr: string) {
     const sess = getDaySessions(store.sessions, dateStr)
     if (sess.length === 0) return null
@@ -424,6 +430,18 @@ export default function JourTab({ store, now }: Props) {
               )
             })}
           </div>
+          {/* Legend */}
+          {calActiveBlocs.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-2">
+              {calActiveBlocs.map(b => (
+                <div key={b.id} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: COLORS[b.color].main }} />
+                  <span className="text-xs text-gray-500">{b.icon} {b.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </>}
 

@@ -1,14 +1,45 @@
 import { useState } from 'react'
 import type { Store } from '../store'
+import ExportModal from '../components/ExportModal'
+import { isSupabaseConfigured } from '../lib/sync'
 
-interface Props { store: Store }
+interface Props {
+  store:    Store
+  username: string
+  onLogout: () => void
+}
 
-export default function ReglTab({ store }: Props) {
+export default function ReglTab({ store, username, onLogout }: Props) {
   const { settings, updateSettings } = store
+  const [showExport, setShowExport]  = useState(false)
 
   return (
     <div className="px-4 pt-4 pb-8 space-y-5">
       <h2 className="text-base font-bold text-gray-900">Paramètres</h2>
+
+      {/* Compte */}
+      <Section title="Compte">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{username}</p>
+            <p className="text-xs text-gray-400">
+              {isSupabaseConfigured ? '☁️ Données synchronisées en ligne' : '💾 Données locales uniquement'}
+            </p>
+          </div>
+          <button onClick={onLogout}
+            className="text-sm text-red-500 font-medium px-3 py-1.5 rounded-xl hover:bg-red-50 transition-colors">
+            Déconnexion
+          </button>
+        </div>
+        {!isSupabaseConfigured && (
+          <div className="px-4 pb-3">
+            <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-800 leading-relaxed">
+              <p className="font-semibold mb-0.5">Sync cloud non configurée</p>
+              <p>Ajoutez <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> et <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> dans les variables d'environnement Cloudflare Pages pour activer la synchronisation multi-appareils.</p>
+            </div>
+          </div>
+        )}
+      </Section>
 
       {/* Temps */}
       <Section title="Temps">
@@ -77,10 +108,29 @@ export default function ReglTab({ store }: Props) {
         </div>
       </Section>
 
+      {/* Données */}
+      <Section title="Données">
+        <div className="px-4 py-3">
+          <button onClick={() => setShowExport(true)}
+            className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            ⬇ Exporter en CSV
+          </button>
+        </div>
+      </Section>
+
       <p className="text-xs text-gray-400 text-center leading-relaxed pt-2">
-        Tes données sont stockées localement sur cet appareil.<br />
-        Rien n'est envoyé sur internet.
+        {isSupabaseConfigured
+          ? 'Données sauvegardées en ligne et accessibles sur tous tes appareils.'
+          : 'Données stockées localement. Active la sync pour accéder depuis plusieurs appareils.'}
       </p>
+
+      <ExportModal
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        sessions={store.sessions}
+        blocs={store.blocs}
+        settings={store.settings}
+      />
     </div>
   )
 }
