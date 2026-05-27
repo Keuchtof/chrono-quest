@@ -16,45 +16,66 @@ function save<T>(key: string, v: T) {
   localStorage.setItem(key, JSON.stringify(v))
 }
 
+function sessionFromTimer(t: ActiveTimer): Session {
+  const endTime = Date.now()
+  return {
+    id: generateId(),
+    blocId: t.blocId,
+    date: getDateStr(new Date(t.startTime)),
+    startTime: t.startTime,
+    endTime,
+    duration: Math.round((endTime - t.startTime) / 1000),
+    tag: t.tag,
+    config: t.config,
+    posture: t.posture,
+  }
+}
+
 export function useStore() {
-  const [blocs,       setBlocs]       = useState<Bloc[]>         (() => load('cq_blocs',    DEFAULT_BLOCS))
-  const [sessions,    setSessions]    = useState<Session[]>      (() => load('cq_sessions', []))
-  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(() => load('cq_timer', null))
-  const [settings,    setSettings]    = useState<Settings>       (() => load('cq_settings', DEFAULT_SETTINGS))
+  const [blocs,       setBlocs]       = useState<Bloc[]>              (() => load('cq_blocs',    DEFAULT_BLOCS))
+  const [sessions,    setSessions]    = useState<Session[]>           (() => load('cq_sessions', []))
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>  (() => load('cq_timer',    null))
+  const [settings,    setSettings]    = useState<Settings>            (() => {
+    const stored = load<Partial<Settings>>('cq_settings', {})
+    return { ...DEFAULT_SETTINGS, ...stored }
+  })
 
   useEffect(() => { save('cq_blocs',    blocs)       }, [blocs])
   useEffect(() => { save('cq_sessions', sessions)    }, [sessions])
   useEffect(() => { save('cq_timer',    activeTimer) }, [activeTimer])
   useEffect(() => { save('cq_settings', settings)    }, [settings])
 
+  // ─── Démarrer : sauvegarde le timer en cours s'il y en a un ───────────────
   const startTimer = useCallback((blocId: string) => {
-    setActiveTimer({ blocId, startTime: Date.now(), tag: '' })
+    setActiveTimer(prev => {
+      if (prev) {
+        const duration = Math.round((Date.now() - prev.startTime) / 1000)
+        if (duration >= 1) {
+          setSessions(s => [...s, sessionFromTimer(prev)])
+        }
+      }
+      return { blocId, startTime: Date.now(), tag: '', config: '', posture: '' }
+    })
   }, [])
 
+  // ─── Arrêter ───────────────────────────────────────────────────────────────
   const stopTimer = useCallback(() => {
     setActiveTimer(prev => {
       if (!prev) return null
-      const endTime = Date.now()
-      const duration = Math.round((endTime - prev.startTime) / 1000)
+      const duration = Math.round((Date.now() - prev.startTime) / 1000)
       if (duration >= 1) {
-        setSessions(s => [...s, {
-          id: generateId(),
-          blocId: prev.blocId,
-          date: getDateStr(new Date(prev.startTime)),
-          startTime: prev.startTime,
-          endTime,
-          duration,
-          tag: prev.tag,
-        }])
+        setSessions(s => [...s, sessionFromTimer(prev)])
       }
       return null
     })
   }, [])
 
-  const setTimerTag = useCallback((tag: string) => {
-    setActiveTimer(prev => prev ? { ...prev, tag } : null)
+  // ─── Mettre à jour tag / dimensions du timer actif ─────────────────────────
+  const setTimerMeta = useCallback((meta: Partial<Pick<ActiveTimer, 'tag' | 'config' | 'posture'>>) => {
+    setActiveTimer(prev => prev ? { ...prev, ...meta } : null)
   }, [])
 
+  // ─── Sessions ──────────────────────────────────────────────────────────────
   const addSession = useCallback((s: Omit<Session, 'id'>) => {
     setSessions(prev => [...prev, { ...s, id: generateId() }])
   }, [])
@@ -67,6 +88,7 @@ export function useStore() {
     setSessions(prev => prev.filter(s => s.id !== id))
   }, [])
 
+  // ─── Blocs ─────────────────────────────────────────────────────────────────
   const addBloc = useCallback((b: Omit<Bloc, 'id'>) => {
     setBlocs(prev => [...prev, { ...b, id: generateId() }])
   }, [])
@@ -80,13 +102,14 @@ export function useStore() {
     setActiveTimer(prev => prev?.blocId === id ? null : prev)
   }, [])
 
+  // ─── Réglages ──────────────────────────────────────────────────────────────
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings(prev => ({ ...prev, ...patch }))
   }, [])
 
   return {
     blocs, sessions, activeTimer, settings,
-    startTimer, stopTimer, setTimerTag,
+    startTimer, stopTimer, setTimerMeta,
     addSession, updateSession, deleteSession,
     addBloc, updateBloc, deleteBloc,
     updateSettings,
