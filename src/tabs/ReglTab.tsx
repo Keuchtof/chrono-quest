@@ -113,7 +113,7 @@ export default function ReglTab({ store, username, onLogout }: Props) {
         </Field>
         <div className="px-4 pb-3">
           <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
-            Objectif mensuel : <strong>{settings.joursParMois * settings.heuresParJour}h</strong>
+            Objectif mensuel : <strong>{Math.round(settings.joursParMois * settings.heuresParJour * 10) / 10}h</strong>
             {' · '}Journalier : <strong>{settings.heuresParJour}h</strong>
           </p>
         </div>
