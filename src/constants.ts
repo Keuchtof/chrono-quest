@@ -29,6 +29,11 @@ export const DEFAULT_SETTINGS: Settings = {
   heuresParJour:  7.5,
   configurations: DEFAULT_CONFIGURATIONS,
   postures:       DEFAULT_POSTURES,
+  zoneName1:      'Alpes',
+  zoneName2:      'Territoire',
 }
 
 export const EMOJI_OPTIONS = ['🏛️','🚀','🎉','🤝','⚙️','📋','👥','💼','📊','💡','🔧','📞','✉️','🗂️','💰','🎯','📝','🔍','📅','🌱']
+
+export const ZONE1_COLOR = '#3B82F6'
+export const ZONE2_COLOR = '#F97316'

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Store } from '../store'
-import { COLORS } from '../constants'
+import { COLORS, ZONE1_COLOR, ZONE2_COLOR } from '../constants'
 import { formatTimer, secondsToDisplay, getMonthSessions } from '../utils'
 import AddSessionModal from '../components/AddSessionModal'
 
@@ -94,6 +94,28 @@ export default function SuiviTab({ store, now }: Props) {
                         {p}
                       </button>
                     ))}
+                  </div>
+                </div>
+                {/* Zone */}
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Zone</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => store.setTimerMeta({ zone: t!.zone === 'zone1' ? '' : 'zone1' })}
+                      className="flex-1 py-1.5 rounded-xl border font-medium text-xs transition-all"
+                      style={t!.zone === 'zone1'
+                        ? { backgroundColor: ZONE1_COLOR, color: '#fff', borderColor: ZONE1_COLOR }
+                        : { backgroundColor: '#ffffff88', color: '#374151', borderColor: '#D1D5DB' }}>
+                      {store.settings.zoneName1}
+                    </button>
+                    <button
+                      onClick={() => store.setTimerMeta({ zone: t!.zone === 'zone2' ? '' : 'zone2' })}
+                      className="flex-1 py-1.5 rounded-xl border font-medium text-xs transition-all"
+                      style={t!.zone === 'zone2'
+                        ? { backgroundColor: ZONE2_COLOR, color: '#fff', borderColor: ZONE2_COLOR }
+                        : { backgroundColor: '#ffffff88', color: '#374151', borderColor: '#D1D5DB' }}>
+                      {store.settings.zoneName2}
+                    </button>
                   </div>
                 </div>
                 {/* Tag libre */}

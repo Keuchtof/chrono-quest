@@ -54,6 +54,29 @@ export default function ReglTab({ store }: Props) {
         </div>
       </Section>
 
+      {/* Zones */}
+      <Section title="Zones géographiques">
+        <Field label="Nom de la zone 1">
+          <input type="text"
+            value={settings.zoneName1}
+            onChange={e => updateSettings({ zoneName1: e.target.value || 'Alpes' })}
+            placeholder="ex: Alpes"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </Field>
+        <Field label="Nom de la zone 2">
+          <input type="text"
+            value={settings.zoneName2}
+            onChange={e => updateSettings({ zoneName2: e.target.value || 'Territoire' })}
+            placeholder="ex: Territoire"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </Field>
+        <div className="px-4 pb-3">
+          <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
+            Ces noms apparaissent sur le switch lors du chronométrage et dans les statistiques.
+          </p>
+        </div>
+      </Section>
+
       <p className="text-xs text-gray-400 text-center leading-relaxed pt-2">
         Tes données sont stockées localement sur cet appareil.<br />
         Rien n'est envoyé sur internet.

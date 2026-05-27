@@ -26,7 +26,7 @@ export default function App() {
       <main className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'suivi' && <SuiviTab store={store} now={now} />}
         {tab === 'jour'  && <JourTab  store={store} now={now} />}
-        {tab === 'blocs' && <BlocsTab store={store} />}
+        {tab === 'blocs' && <BlocsTab store={store} now={now} />}
         {tab === 'histo' && <HistoTab store={store} />}
         {tab === 'regl'  && <ReglTab  store={store} />}
       </main>

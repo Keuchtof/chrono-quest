@@ -17,6 +17,7 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
   const [tag,      setTag]      = useState('')
   const [config,   setConfig]   = useState('')
   const [posture,  setPosture]  = useState('')
+  const [zone,     setZone]     = useState('')
   const [hours,    setHours]    = useState('0')
   const [minutes,  setMinutes]  = useState('0')
   const [date,     setDate]     = useState('')
@@ -27,6 +28,7 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
       setTag(session.tag ?? '')
       setConfig(session.config ?? '')
       setPosture(session.posture ?? '')
+      setZone(session.zone ?? '')
       setHours(String(Math.floor(session.duration / 3600)))
       setMinutes(String(Math.floor((session.duration % 3600) / 60)))
       setDate(session.date)
@@ -36,7 +38,7 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
   function handleSave() {
     const duration = (parseInt(hours) || 0) * 3600 + (parseInt(minutes) || 0) * 60
     if (duration < 1) return
-    onSave({ blocId, tag, config, posture, duration, date })
+    onSave({ blocId, tag, config, posture, zone, duration, date })
     onClose()
   }
 
@@ -75,6 +77,26 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
 
         <DimSelector label="Configuration" options={settings.configurations} value={config} onChange={setConfig} color="#3B82F6" />
         <DimSelector label="Posture"        options={settings.postures}       value={posture} onChange={setPosture} color="#8B5CF6" />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Zone</label>
+          <div className="flex gap-2">
+            <button onClick={() => setZone(zone === 'zone1' ? '' : 'zone1')}
+              className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+              style={zone === 'zone1'
+                ? { backgroundColor: '#3B82F6', color: '#fff', borderColor: '#3B82F6' }
+                : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
+              {settings.zoneName1}
+            </button>
+            <button onClick={() => setZone(zone === 'zone2' ? '' : 'zone2')}
+              className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+              style={zone === 'zone2'
+                ? { backgroundColor: '#F97316', color: '#fff', borderColor: '#F97316' }
+                : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
+              {settings.zoneName2}
+            </button>
+          </div>
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Tag libre</label>

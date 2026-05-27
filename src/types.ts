@@ -11,13 +11,14 @@ export interface Bloc {
 export interface Session {
   id: string
   blocId: string
-  date: string       // YYYY-MM-DD
-  startTime: number  // Unix ms
-  endTime: number    // Unix ms
+  date: string
+  startTime: number
+  endTime: number
   duration: number   // seconds
   tag: string
-  config: string     // Dimension 1 : Configuration
-  posture: string    // Dimension 2 : Posture
+  config: string
+  posture: string
+  zone: string       // 'zone1' | 'zone2' | ''
 }
 
 export interface ActiveTimer {
@@ -26,6 +27,7 @@ export interface ActiveTimer {
   tag: string
   config: string
   posture: string
+  zone: string
 }
 
 export interface Settings {
@@ -33,4 +35,6 @@ export interface Settings {
   heuresParJour: number
   configurations: string[]
   postures: string[]
+  zoneName1: string   // ex: 'Alpes'
+  zoneName2: string   // ex: 'Territoire'
 }
