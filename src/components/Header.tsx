@@ -20,7 +20,7 @@ export default function Header({ store, now }: Props) {
   const barColor = activeBloc ? COLORS[activeBloc.color].main : '#3B82F6'
 
   return (
-    <header className="bg-white px-4 pt-4 pb-3 shadow-sm sticky top-0 z-30">
+    <header className="bg-white px-4 pt-4 pb-3 shadow-sm flex-shrink-0">
       <div className="flex items-start justify-between mb-2">
         <div>
           <h1 className="text-lg font-bold text-gray-900 leading-tight">Chrono Quest</h1>

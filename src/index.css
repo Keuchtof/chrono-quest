@@ -2,11 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-* { -webkit-tap-highlight-color: transparent; }
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
 
 body {
-  background: #f3f4f6;
+  background: #d1d5db;
   overscroll-behavior: none;
 }
 
+/* Masquer les scrollbars */
 ::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }

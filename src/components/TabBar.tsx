@@ -51,7 +51,7 @@ const TABS: { id: Tab; label: string; icon: (active: boolean) => React.ReactNode
 
 export default function TabBar({ tab, setTab }: Props) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto bg-white border-t border-gray-100 z-30">
+    <nav className="bg-white border-t border-gray-100 flex-shrink-0">
       <div className="flex">
         {TABS.map(t => (
           <button

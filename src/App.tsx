@@ -21,9 +21,9 @@ export default function App() {
   }, [])
 
   return (
-    <div className="min-h-[100dvh] bg-gray-100 flex flex-col max-w-sm mx-auto relative">
+    <div className="h-full w-full max-w-md mx-auto flex flex-col bg-gray-50 shadow-2xl">
       <Header store={store} now={now} />
-      <main className="flex-1 overflow-y-auto pb-16">
+      <main className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'suivi' && <SuiviTab store={store} now={now} />}
         {tab === 'jour'  && <JourTab  store={store} now={now} />}
         {tab === 'blocs' && <BlocsTab store={store} />}
