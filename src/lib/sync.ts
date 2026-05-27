@@ -1,8 +1,11 @@
 /**
  * Supabase cloud sync for Chrono Quest
  *
- * SETUP (run once in the Supabase SQL editor):
- * ─────────────────────────────────────────────
+ * Config stored in localStorage('cq_supabase') — set directly from the app UI
+ * (Paramètres → Compte → Synchronisation cloud).
+ *
+ * Supabase table setup (run once in the SQL editor):
+ * ───────────────────────────────────────────────────
  * CREATE TABLE chrono_quest_data (
  *   username   TEXT PRIMARY KEY,
  *   blocs      JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -10,28 +13,40 @@
  *   settings   JSONB NOT NULL DEFAULT '{}'::jsonb,
  *   updated_at TIMESTAMPTZ DEFAULT NOW()
  * );
- *
  * ALTER TABLE chrono_quest_data ENABLE ROW LEVEL SECURITY;
  * CREATE POLICY "allow_all" ON chrono_quest_data
  *   FOR ALL TO anon USING (true) WITH CHECK (true);
- *
- * ENVIRONMENT VARIABLES (Cloudflare Pages → Settings → Environment variables):
- *   VITE_SUPABASE_URL       = https://xxxxxxxxxxxx.supabase.co
- *   VITE_SUPABASE_ANON_KEY  = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const env   = (import.meta as any).env ?? {}
-const URL_  = (env.VITE_SUPABASE_URL       as string | undefined) ?? ''
-const KEY_  = (env.VITE_SUPABASE_ANON_KEY  as string | undefined) ?? ''
 const TABLE = 'chrono_quest_data'
+const LS_KEY = 'cq_supabase'
 
-export const isSupabaseConfigured = !!(URL_ && KEY_)
+export interface SupabaseConfig { url: string; key: string }
 
-function hdrs(extra: Record<string, string> = {}) {
+/** Read config from localStorage (set by the user in Settings). */
+export function getSupabaseConfig(): SupabaseConfig | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return null
+    const cfg = JSON.parse(raw) as SupabaseConfig
+    return cfg.url && cfg.key ? cfg : null
+  } catch { return null }
+}
+
+/** Persist config to localStorage. Pass null to clear. */
+export function setSupabaseConfig(cfg: SupabaseConfig | null) {
+  if (cfg) localStorage.setItem(LS_KEY, JSON.stringify(cfg))
+  else localStorage.removeItem(LS_KEY)
+}
+
+export function isSupabaseConfigured(): boolean {
+  return getSupabaseConfig() !== null
+}
+
+function hdrs(cfg: SupabaseConfig, extra: Record<string, string> = {}) {
   return {
-    apikey: KEY_,
-    Authorization: `Bearer ${KEY_}`,
+    apikey: cfg.key,
+    Authorization: `Bearer ${cfg.key}`,
     'Content-Type': 'application/json',
     ...extra,
   }
@@ -45,11 +60,12 @@ export interface CloudData {
 
 /** Load user data from Supabase. Returns null if not found or not configured. */
 export async function loadUserData(username: string): Promise<CloudData | null> {
-  if (!isSupabaseConfigured) return null
+  const cfg = getSupabaseConfig()
+  if (!cfg) return null
   try {
     const res = await fetch(
-      `${URL_}/rest/v1/${TABLE}?username=eq.${encodeURIComponent(username)}&select=blocs,sessions,settings`,
-      { headers: hdrs() },
+      `${cfg.url}/rest/v1/${TABLE}?username=eq.${encodeURIComponent(username)}&select=blocs,sessions,settings`,
+      { headers: hdrs(cfg) },
     )
     if (!res.ok) return null
     const rows: CloudData[] = await res.json()
@@ -61,11 +77,12 @@ export async function loadUserData(username: string): Promise<CloudData | null> 
 
 /** Upsert user data to Supabase. Silent on error (offline-safe). */
 export async function saveUserData(username: string, data: CloudData): Promise<void> {
-  if (!isSupabaseConfigured) return
+  const cfg = getSupabaseConfig()
+  if (!cfg) return
   try {
-    await fetch(`${URL_}/rest/v1/${TABLE}`, {
+    await fetch(`${cfg.url}/rest/v1/${TABLE}`, {
       method: 'POST',
-      headers: hdrs({ Prefer: 'resolution=merge-duplicates' }),
+      headers: hdrs(cfg, { Prefer: 'resolution=merge-duplicates' }),
       body: JSON.stringify({
         username,
         blocs:      data.blocs,

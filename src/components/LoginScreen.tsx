@@ -55,7 +55,7 @@ export default function LoginScreen({ onLogin, loading }: Props) {
 
         {/* Sync note */}
         <div className="text-center space-y-1.5">
-          {isSupabaseConfigured ? (
+          {isSupabaseConfigured() ? (
             <p className="text-xs text-gray-400 leading-relaxed">
               ☁️ Entrez le même identifiant sur tous vos appareils<br />
               pour retrouver vos données.

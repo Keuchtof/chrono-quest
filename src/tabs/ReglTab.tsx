@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Store } from '../store'
 import ExportModal from '../components/ExportModal'
-import { isSupabaseConfigured } from '../lib/sync'
+import { isSupabaseConfigured, getSupabaseConfig, setSupabaseConfig } from '../lib/sync'
 
 interface Props {
   store:    Store
@@ -11,7 +11,28 @@ interface Props {
 
 export default function ReglTab({ store, username, onLogout }: Props) {
   const { settings, updateSettings } = store
-  const [showExport, setShowExport]  = useState(false)
+  const [showExport, setShowExport] = useState(false)
+
+  // Supabase config form
+  const existing = getSupabaseConfig()
+  const [sbUrl,   setSbUrl]   = useState(existing?.url ?? '')
+  const [sbKey,   setSbKey]   = useState(existing?.key ?? '')
+  const [sbSaved, setSbSaved] = useState(isSupabaseConfigured())
+
+  function saveSync() {
+    const url = sbUrl.trim()
+    const key = sbKey.trim()
+    if (!url || !key) return
+    setSupabaseConfig({ url, key })
+    setSbSaved(true)
+  }
+
+  function clearSync() {
+    setSupabaseConfig(null)
+    setSbUrl('')
+    setSbKey('')
+    setSbSaved(false)
+  }
 
   return (
     <div className="px-4 pt-4 pb-8 space-y-5">
@@ -23,7 +44,7 @@ export default function ReglTab({ store, username, onLogout }: Props) {
           <div>
             <p className="text-sm font-semibold text-gray-900">{username}</p>
             <p className="text-xs text-gray-400">
-              {isSupabaseConfigured ? '☁️ Données synchronisées en ligne' : '💾 Données locales uniquement'}
+              {sbSaved ? '☁️ Synchronisation cloud active' : '💾 Données locales uniquement'}
             </p>
           </div>
           <button onClick={onLogout}
@@ -31,14 +52,49 @@ export default function ReglTab({ store, username, onLogout }: Props) {
             Déconnexion
           </button>
         </div>
-        {!isSupabaseConfigured && (
-          <div className="px-4 pb-3">
-            <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-800 leading-relaxed">
-              <p className="font-semibold mb-0.5">Sync cloud non configurée</p>
-              <p>Ajoutez <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> et <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> dans les variables d'environnement Cloudflare Pages pour activer la synchronisation multi-appareils.</p>
+      </Section>
+
+      {/* Sync cloud */}
+      <Section title="Synchronisation cloud">
+        <div className="px-4 py-3 space-y-3">
+          {sbSaved ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-700 font-medium">☁️ Connecté à Supabase</p>
+                <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">{sbUrl}</p>
+              </div>
+              <button onClick={clearSync}
+                className="text-xs text-gray-500 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50">
+                Modifier
+              </button>
             </div>
-          </div>
-        )}
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Entrez vos clés Supabase pour synchroniser vos données sur plusieurs appareils.
+                Récupérez ces valeurs dans <strong>votre projet Supabase → Home → Copy</strong>.
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Project URL</label>
+                  <input type="text" value={sbUrl} onChange={e => setSbUrl(e.target.value)}
+                    placeholder="https://xxxx.supabase.co"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs bg-gray-50 focus:outline-none focus:border-blue-400 font-mono" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Publishable key (anon)</label>
+                  <input type="text" value={sbKey} onChange={e => setSbKey(e.target.value)}
+                    placeholder="sb_publishable_..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs bg-gray-50 focus:outline-none focus:border-blue-400 font-mono" />
+                </div>
+              </div>
+              <button onClick={saveSync} disabled={!sbUrl.trim() || !sbKey.trim()}
+                className="w-full py-2.5 rounded-xl bg-blue-500 text-sm font-medium text-white disabled:opacity-40 transition-opacity">
+                Activer la sync
+              </button>
+            </>
+          )}
+        </div>
       </Section>
 
       {/* Temps */}
@@ -66,37 +122,29 @@ export default function ReglTab({ store, username, onLogout }: Props) {
       {/* Dimension Configuration */}
       <Section title="Dimension — Configuration">
         <div className="px-4 pb-4">
-          <DimEditor
-            values={settings.configurations}
-            onChange={v => updateSettings({ configurations: v })}
-            color="#3B82F6"
-          />
+          <DimEditor values={settings.configurations}
+            onChange={v => updateSettings({ configurations: v })} color="#3B82F6" />
         </div>
       </Section>
 
       {/* Dimension Posture */}
       <Section title="Dimension — Posture">
         <div className="px-4 pb-4">
-          <DimEditor
-            values={settings.postures}
-            onChange={v => updateSettings({ postures: v })}
-            color="#8B5CF6"
-          />
+          <DimEditor values={settings.postures}
+            onChange={v => updateSettings({ postures: v })} color="#8B5CF6" />
         </div>
       </Section>
 
       {/* Zones */}
       <Section title="Zones géographiques">
         <Field label="Nom de la zone 1">
-          <input type="text"
-            value={settings.zoneName1}
+          <input type="text" value={settings.zoneName1}
             onChange={e => updateSettings({ zoneName1: e.target.value || 'Alpes' })}
             placeholder="ex: Alpes"
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
         </Field>
         <Field label="Nom de la zone 2">
-          <input type="text"
-            value={settings.zoneName2}
+          <input type="text" value={settings.zoneName2}
             onChange={e => updateSettings({ zoneName2: e.target.value || 'Territoire' })}
             placeholder="ex: Territoire"
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
@@ -119,7 +167,7 @@ export default function ReglTab({ store, username, onLogout }: Props) {
       </Section>
 
       <p className="text-xs text-gray-400 text-center leading-relaxed pt-2">
-        {isSupabaseConfigured
+        {sbSaved
           ? 'Données sauvegardées en ligne et accessibles sur tous tes appareils.'
           : 'Données stockées localement. Active la sync pour accéder depuis plusieurs appareils.'}
       </p>
@@ -134,6 +182,8 @@ export default function ReglTab({ store, username, onLogout }: Props) {
     </div>
   )
 }
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -160,10 +210,7 @@ function DimEditor({ values, onChange, color }: {
 
   function add() {
     const v = newVal.trim()
-    if (v && !values.includes(v)) {
-      onChange([...values, v])
-      setNewVal('')
-    }
+    if (v && !values.includes(v)) { onChange([...values, v]); setNewVal('') }
   }
 
   return (
@@ -173,25 +220,18 @@ function DimEditor({ values, onChange, color }: {
           <span key={i} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium"
             style={{ backgroundColor: color + '18', color }}>
             {v}
-            <button
-              onClick={() => onChange(values.filter((_, j) => j !== i))}
+            <button onClick={() => onChange(values.filter((_, j) => j !== i))}
               className="ml-0.5 w-4 h-4 rounded-full flex items-center justify-center hover:opacity-70 font-bold"
-              style={{ color }}
-            >×</button>
+              style={{ color }}>×</button>
           </span>
         ))}
       </div>
       <div className="flex gap-2">
-        <input
-          type="text"
-          value={newVal}
-          onChange={e => setNewVal(e.target.value)}
+        <input type="text" value={newVal} onChange={e => setNewVal(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder="Ajouter une valeur..."
-          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400"
-        />
-        <button onClick={add}
-          className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        <button onClick={add} className="px-3 py-2 rounded-xl text-sm font-semibold text-white"
           style={{ backgroundColor: color }}>+</button>
       </div>
     </div>
