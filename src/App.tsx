@@ -22,21 +22,33 @@ export default function App() {
     setLoading(true)
     const prev = localStorage.getItem('cq_username')
     if (prev !== name) {
-      // Different user → clear local data so we don't leak sessions
       localStorage.removeItem('cq_blocs')
       localStorage.removeItem('cq_sessions')
       localStorage.removeItem('cq_timer')
     }
-    try {
-      const data = await loadUserData(name)
-      if (data?.blocs    && (data.blocs    as unknown[]).length)  localStorage.setItem('cq_blocs',    JSON.stringify(data.blocs))
-      if (data?.sessions && (data.sessions as unknown[]).length)  localStorage.setItem('cq_sessions', JSON.stringify(data.sessions))
-      if (data?.settings && Object.keys(data.settings).length)    localStorage.setItem('cq_settings', JSON.stringify(data.settings))
-    } catch { /* offline – use local data */ }
+    await pullFromCloud(name)
     localStorage.setItem('cq_username', name)
     setUsername(name)
     setStoreKey(k => k + 1)
     setLoading(false)
+  }
+
+  /** Pull cloud data for a username and update localStorage. */
+  async function pullFromCloud(name: string) {
+    try {
+      const data = await loadUserData(name)
+      if (!data) return
+      if (data.blocs    && (data.blocs    as unknown[]).length)       localStorage.setItem('cq_blocs',    JSON.stringify(data.blocs))
+      if (data.sessions && (data.sessions as unknown[]).length)       localStorage.setItem('cq_sessions', JSON.stringify(data.sessions))
+      if (data.settings && Object.keys(data.settings as object).length) localStorage.setItem('cq_settings', JSON.stringify(data.settings))
+    } catch { /* offline — keep local data */ }
+  }
+
+  /** Called by ReglTab when Supabase config is saved or user hits "Resync". */
+  async function handleSyncActivated() {
+    const name = localStorage.getItem('cq_username') ?? username
+    await pullFromCloud(name)
+    setStoreKey(k => k + 1) // Remount store from fresh localStorage
   }
 
   function handleLogout() {
@@ -48,16 +60,30 @@ export default function App() {
     return <LoginScreen onLogin={handleLogin} loading={loading} />
   }
 
-  return <AppContent key={storeKey} username={username} onLogout={handleLogout} />
+  return (
+    <AppContent
+      key={storeKey}
+      username={username}
+      onLogout={handleLogout}
+      onSyncActivated={handleSyncActivated}
+    />
+  )
 }
 
-// ─── AppContent (actual app UI — remounted on login to reload store) ─────────
-function AppContent({ username, onLogout }: { username: string; onLogout: () => void }) {
+// ─── AppContent (remounted on login/resync to reload store) ──────────────────
+function AppContent({
+  username,
+  onLogout,
+  onSyncActivated,
+}: {
+  username:        string
+  onLogout:        () => void
+  onSyncActivated: () => Promise<void>
+}) {
   const [tab, setTab] = useState<Tab>('suivi')
   const [now, setNow] = useState(Date.now())
   const store = useStore()
 
-  // Tick every second for live timers
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
@@ -83,7 +109,14 @@ function AppContent({ username, onLogout }: { username: string; onLogout: () => 
         {tab === 'jour'  && <JourTab  store={store} now={now} />}
         {tab === 'blocs' && <BlocsTab store={store} now={now} />}
         {tab === 'histo' && <HistoTab store={store} />}
-        {tab === 'regl'  && <ReglTab  store={store} username={username} onLogout={onLogout} />}
+        {tab === 'regl'  && (
+          <ReglTab
+            store={store}
+            username={username}
+            onLogout={onLogout}
+            onSyncActivated={onSyncActivated}
+          />
+        )}
       </main>
       <TabBar tab={tab} setTab={setTab} />
     </div>

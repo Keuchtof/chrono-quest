@@ -4,14 +4,16 @@ import ExportModal from '../components/ExportModal'
 import { isSupabaseConfigured, getSupabaseConfig, setSupabaseConfig } from '../lib/sync'
 
 interface Props {
-  store:    Store
-  username: string
-  onLogout: () => void
+  store:           Store
+  username:        string
+  onLogout:        () => void
+  onSyncActivated: () => Promise<void>
 }
 
-export default function ReglTab({ store, username, onLogout }: Props) {
+export default function ReglTab({ store, username, onLogout, onSyncActivated }: Props) {
   const { settings, updateSettings } = store
-  const [showExport, setShowExport] = useState(false)
+  const [showExport, setShowExport]  = useState(false)
+  const [syncing,    setSyncing]     = useState(false)
 
   // Supabase config form
   const existing = getSupabaseConfig()
@@ -19,12 +21,22 @@ export default function ReglTab({ store, username, onLogout }: Props) {
   const [sbKey,   setSbKey]   = useState(existing?.key ?? '')
   const [sbSaved, setSbSaved] = useState(isSupabaseConfigured())
 
-  function saveSync() {
+  async function saveSync() {
     const url = sbUrl.trim()
     const key = sbKey.trim()
     if (!url || !key) return
     setSupabaseConfig({ url, key })
     setSbSaved(true)
+    // Immediately pull data from cloud and remount store
+    setSyncing(true)
+    await onSyncActivated()
+    setSyncing(false)
+  }
+
+  async function resync() {
+    setSyncing(true)
+    await onSyncActivated()
+    setSyncing(false)
   }
 
   function clearSync() {
@@ -58,14 +70,20 @@ export default function ReglTab({ store, username, onLogout }: Props) {
       <Section title="Synchronisation cloud">
         <div className="px-4 py-3 space-y-3">
           {sbSaved ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-700 font-medium">☁️ Connecté à Supabase</p>
-                <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">{sbUrl}</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-green-700 font-medium">☁️ Connecté à Supabase</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[180px]">{sbUrl}</p>
+                </div>
+                <button onClick={clearSync}
+                  className="text-xs text-gray-500 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50">
+                  Modifier
+                </button>
               </div>
-              <button onClick={clearSync}
-                className="text-xs text-gray-500 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50">
-                Modifier
+              <button onClick={resync} disabled={syncing}
+                className="w-full py-2 rounded-xl border border-green-200 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors">
+                {syncing ? '⏳ Synchronisation…' : '🔄 Resynchroniser depuis le cloud'}
               </button>
             </div>
           ) : (
