@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Modal from './Modal'
 import type { Bloc, Session, Settings } from '../types'
 import { getDateStr, generateId } from '../utils'
+import ChargeSelector from './ChargeSelector'
 
 interface Props {
   open: boolean
@@ -13,25 +14,34 @@ interface Props {
 }
 
 export default function AddSessionModal({ open, blocs, settings, defaultDate, onAdd, onClose }: Props) {
-  const [blocId,   setBlocId]   = useState(blocs[0]?.id ?? '')
-  const [tag,      setTag]      = useState('')
-  const [config,   setConfig]   = useState('')
-  const [posture,  setPosture]  = useState('')
-  const [zone,     setZone]     = useState('')
-  const [hours,    setHours]    = useState('0')
-  const [minutes,  setMinutes]  = useState('30')
-  const [date,     setDate]     = useState(defaultDate ?? getDateStr())
+  const [blocId,       setBlocId]       = useState(blocs[0]?.id ?? '')
+  const [tag,          setTag]          = useState('')
+  const [config,       setConfig]       = useState('')
+  const [posture,      setPosture]      = useState('')
+  const [zone,         setZone]         = useState('')
+  const [hours,        setHours]        = useState('0')
+  const [minutes,      setMinutes]      = useState('30')
+  const [date,         setDate]         = useState(defaultDate ?? getDateStr())
+  const [startTimeStr, setStartTimeStr] = useState(() => {
+    const n = new Date()
+    return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`
+  })
+  const [chargeNiveau, setChargeNiveau] = useState(0)
 
   function reset() {
+    const n = new Date()
+    setStartTimeStr(`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`)
     setTag(''); setConfig(''); setPosture(''); setZone('')
     setHours('0'); setMinutes('30')
     setDate(getDateStr())
+    setChargeNiveau(0)
   }
 
   function handleAdd() {
     const duration = (parseInt(hours) || 0) * 3600 + (parseInt(minutes) || 0) * 60
     if (duration < 1 || !blocId) return
-    onAdd({ blocId, date, startTime: Date.now(), endTime: Date.now(), duration, tag, config, posture, zone })
+    const startTs = new Date(date + 'T' + startTimeStr + ':00').getTime()
+    onAdd({ blocId, date, startTime: startTs, endTime: startTs + duration * 1000, duration, tag, config, posture, zone, chargeNiveau })
     reset()
     onClose()
   }
@@ -67,6 +77,17 @@ export default function AddSessionModal({ open, blocs, settings, defaultDate, on
           <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
           <input type="date" value={date} max={getDateStr()} onChange={e => setDate(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Heure de début</label>
+          <input type="time" value={startTimeStr} onChange={e => setStartTimeStr(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Charge mentale</label>
+          <ChargeSelector value={chargeNiveau} onChange={setChargeNiveau} />
         </div>
 
         <DimSelector label="Configuration" options={settings.configurations} value={config} onChange={setConfig} color="#3B82F6" />

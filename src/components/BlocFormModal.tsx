@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Modal from './Modal'
 import type { Bloc, ColorName } from '../types'
-import { COLORS, COLOR_NAMES, EMOJI_OPTIONS } from '../constants'
+import { COLORS, USER_COLOR_NAMES, EMOJI_OPTIONS } from '../constants'
 
 interface Props {
   open: boolean
@@ -30,9 +30,11 @@ export default function BlocFormModal({ open, bloc, onSave, onClose }: Props) {
     }
   }, [bloc, open])
 
+  const isRest = bloc?.isRest === true
+
   function handleSave() {
     if (!name.trim()) return
-    onSave({ name: name.trim(), icon, color, objectifJours: parseInt(objectif) || 1 })
+    onSave({ name: name.trim(), icon, color, objectifJours: parseInt(objectif) || 0, ...(isRest ? { isRest: true } : {}) })
     onClose()
   }
 
@@ -41,41 +43,53 @@ export default function BlocFormModal({ open, bloc, onSave, onClose }: Props) {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Ex : Communication..."
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400"
-          />
+          {isRest ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-100 border border-gray-200">
+              <span className="text-lg">{bloc!.icon}</span>
+              <span className="text-sm font-semibold text-gray-500">{bloc!.name}</span>
+              <span className="ml-auto text-[10px] font-semibold text-gray-400 tracking-wider">REPOS</span>
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex : Communication..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400"
+            />
+          )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Icône</label>
-          <div className="flex flex-wrap gap-2">
-            {EMOJI_OPTIONS.map(e => (
-              <button
-                key={e}
-                onClick={() => setIcon(e)}
-                className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${icon === e ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-gray-100 hover:bg-gray-200'}`}
-              >{e}</button>
-            ))}
+        {!isRest && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Icône</label>
+            <div className="flex flex-wrap gap-2">
+              {EMOJI_OPTIONS.map(e => (
+                <button
+                  key={e}
+                  onClick={() => setIcon(e)}
+                  className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-colors ${icon === e ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-gray-100 hover:bg-gray-200'}`}
+                >{e}</button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
-          <div className="flex gap-2 flex-wrap">
-            {COLOR_NAMES.map(c => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                className={`w-8 h-8 rounded-full transition-transform ${color === c ? 'scale-125 ring-2 ring-offset-1 ring-gray-400' : ''}`}
-                style={{ backgroundColor: COLORS[c].main }}
-              />
-            ))}
+        {!isRest && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
+            <div className="flex gap-2 flex-wrap">
+              {USER_COLOR_NAMES.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`w-8 h-8 rounded-full transition-transform ${color === c ? 'scale-125 ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                  style={{ backgroundColor: COLORS[c].main }}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Objectif (jours/mois)</label>

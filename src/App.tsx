@@ -5,12 +5,12 @@ import TabBar from './components/TabBar'
 import LoginScreen from './components/LoginScreen'
 import SuiviTab from './tabs/SuiviTab'
 import JourTab from './tabs/JourTab'
-import BlocsTab from './tabs/BlocsTab'
+import SanteTab from './tabs/SanteTab'
 import HistoTab from './tabs/HistoTab'
 import ReglTab from './tabs/ReglTab'
 import { loadUserData, saveUserData } from './lib/sync'
 
-export type Tab = 'suivi' | 'jour' | 'blocs' | 'histo' | 'regl'
+export type Tab = 'suivi' | 'jour' | 'sante' | 'histo' | 'regl'
 
 // ─── Main App (handles login gate) ───────────────────────────────────────────
 export default function App() {
@@ -107,7 +107,7 @@ function AppContent({
       <main className="flex-1 min-h-0 overflow-y-auto">
         {tab === 'suivi' && <SuiviTab store={store} now={now} />}
         {tab === 'jour'  && <JourTab  store={store} now={now} />}
-        {tab === 'blocs' && <BlocsTab store={store} now={now} />}
+        {tab === 'sante' && <SanteTab store={store} now={now} />}
         {tab === 'histo' && <HistoTab store={store} />}
         {tab === 'regl'  && (
           <ReglTab

@@ -9,9 +9,17 @@ export const COLORS: Record<ColorName, { main: string; light: string }> = {
   orange: { main: '#F97316', light: '#FFF7ED' },
   teal:   { main: '#14B8A6', light: '#F0FDFA' },
   pink:   { main: '#EC4899', light: '#FDF2F8' },
+  gray:   { main: '#6B7280', light: '#F3F4F6' },  // Repos uniquement
 }
 
-export const COLOR_NAMES: ColorName[] = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'teal', 'pink']
+/** Couleurs disponibles pour les blocs utilisateur (sans gray réservé à Repos) */
+export const USER_COLOR_NAMES: ColorName[] = ['blue', 'red', 'green', 'yellow', 'purple', 'orange', 'teal', 'pink']
+export const COLOR_NAMES:      ColorName[] = [...USER_COLOR_NAMES, 'gray']
+
+/** Bloc Repos immuable */
+export const REPOS_BLOC: Bloc = {
+  id: 'b_repos', name: 'Repos', icon: '😴', color: 'gray', objectifJours: 0, isRest: true,
+}
 
 export const DEFAULT_BLOCS: Bloc[] = [
   { id: 'b1', name: 'Gouvernance',    icon: '🏛️', color: 'blue',   objectifJours: 2 },
@@ -19,7 +27,16 @@ export const DEFAULT_BLOCS: Bloc[] = [
   { id: 'b3', name: 'Événements',     icon: '🎉', color: 'red',    objectifJours: 4 },
   { id: 'b4', name: 'Représentation', icon: '🤝', color: 'purple', objectifJours: 4 },
   { id: 'b5', name: 'Gestion',        icon: '⚙️', color: 'yellow', objectifJours: 6 },
+  REPOS_BLOC,
 ]
+
+/** Niveaux de charge mentale */
+export const CHARGE_OPTIONS = [
+  { level: 1, label: '🧠',     name: 'Légère',  color: '#22C55E' },
+  { level: 2, label: '🧠🧠',   name: 'Modérée', color: '#EAB308' },
+  { level: 3, label: '🧠🧠🧠', name: 'Intense', color: '#F97316' },
+  { level: 4, label: '☠️',     name: 'Urgence', color: '#EF4444' },
+] as const
 
 export const DEFAULT_CONFIGURATIONS = ['Solo', 'Staff Alpes', 'Bénévoles', 'Partenaires']
 export const DEFAULT_POSTURES       = ['Pilote', 'Anime', 'Produit', 'Contribue', 'Présence']

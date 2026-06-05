@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import type { Store } from '../store'
 import ExportModal from '../components/ExportModal'
+import ImportModal from '../components/ImportModal'
+import BlocFormModal from '../components/BlocFormModal'
 import { isSupabaseConfigured, getSupabaseConfig, setSupabaseConfig } from '../lib/sync'
+import { MONTHS } from '../utils'
+import { COLORS } from '../constants'
+import type { Bloc } from '../types'
 
 interface Props {
   store:           Store
@@ -12,8 +17,35 @@ interface Props {
 
 export default function ReglTab({ store, username, onLogout, onSyncActivated }: Props) {
   const { settings, updateSettings } = store
-  const [showExport, setShowExport]  = useState(false)
-  const [syncing,    setSyncing]     = useState(false)
+  const [showExport,   setShowExport]   = useState(false)
+  const [showImport,   setShowImport]   = useState(false)
+  const [syncing,      setSyncing]      = useState(false)
+  const [showBlocForm, setShowBlocForm] = useState(false)
+  const [editBloc,     setEditBloc]     = useState<Bloc | null>(null)
+
+  function handleEditBloc(bloc: Bloc)  { setEditBloc(bloc); setShowBlocForm(true) }
+  function handleBlocClose()           { setShowBlocForm(false); setEditBloc(null) }
+
+  // Surcharges jours/mois
+  const today = new Date()
+  const defaultMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const [newOverrideMonth, setNewOverrideMonth] = useState(defaultMonthKey)
+  const [newOverrideDays,  setNewOverrideDays]  = useState(String(settings.joursParMois))
+
+  function addOverride() {
+    const days = parseInt(newOverrideDays)
+    if (!newOverrideMonth || !days || days < 1 || days > 31) return
+    updateSettings({ joursParMoisOverrides: { ...(settings.joursParMoisOverrides ?? {}), [newOverrideMonth]: days } })
+  }
+  function removeOverride(key: string) {
+    const overrides = { ...(settings.joursParMoisOverrides ?? {}) }
+    delete overrides[key]
+    updateSettings({ joursParMoisOverrides: overrides })
+  }
+  function monthKeyLabel(key: string) {
+    const [y, m] = key.split('-')
+    return `${MONTHS[parseInt(m) - 1]} ${y}`
+  }
 
   // Supabase config form
   const existing = getSupabaseConfig()
@@ -115,9 +147,37 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
         </div>
       </Section>
 
+      {/* Blocs de temps */}
+      <Section title="Blocs de temps">
+        <div className="px-4 py-2 space-y-1">
+          {store.blocs.map(bloc => {
+            const color = COLORS[bloc.color]
+            return (
+              <div key={bloc.id} className="flex items-center gap-3 py-1.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                  style={{ backgroundColor: color.light }}>{bloc.icon}</div>
+                <span className="flex-1 text-sm font-medium text-gray-900 truncate">{bloc.name}</span>
+                <button onClick={() => handleEditBloc(bloc)}
+                  className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 rounded-lg">✏️</button>
+                {!bloc.isRest && (
+                  <button onClick={() => { if (confirm(`Supprimer "${bloc.name}" ?`)) store.deleteBloc(bloc.id) }}
+                    className="w-7 h-7 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg">🗑</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="px-4 pb-3">
+          <button onClick={() => setShowBlocForm(true)}
+            className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5">
+            <span className="text-base leading-none">+</span> Nouveau bloc
+          </button>
+        </div>
+      </Section>
+
       {/* Temps */}
       <Section title="Temps">
-        <Field label="Jours travaillés / mois">
+        <Field label="Jours travaillés / mois (défaut)">
           <input type="number" min="1" max="31"
             value={settings.joursParMois}
             onChange={e => updateSettings({ joursParMois: parseFloat(e.target.value) || 20 })}
@@ -129,9 +189,45 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
             onChange={e => updateSettings({ heuresParJour: parseFloat(e.target.value) || 7.5 })}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
         </Field>
+
+        {/* Exceptions par mois */}
+        <div className="px-4 pb-4 space-y-3">
+          <p className="text-xs font-semibold text-gray-500 tracking-wide pt-1">EXCEPTIONS PAR MOIS</p>
+
+          {/* Liste des exceptions existantes */}
+          {Object.keys(settings.joursParMoisOverrides ?? {}).sort().map(key => (
+            <div key={key} className="flex items-center justify-between py-1.5 px-3 bg-blue-50 rounded-xl">
+              <span className="text-sm font-medium text-gray-700 capitalize">{monthKeyLabel(key)}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-blue-600">{settings.joursParMoisOverrides![key]}j</span>
+                <button onClick={() => removeOverride(key)}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 font-bold text-sm transition-colors">
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Formulaire d'ajout */}
+          <div className="flex gap-2">
+            <input type="month" value={newOverrideMonth}
+              onChange={e => setNewOverrideMonth(e.target.value)}
+              max={`${today.getFullYear() + 1}-12`}
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+            <div className="relative w-20">
+              <input type="number" min="1" max="31" value={newOverrideDays}
+                onChange={e => setNewOverrideDays(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400 pr-6" />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">j</span>
+            </div>
+            <button onClick={addOverride}
+              className="px-3 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold">+</button>
+          </div>
+        </div>
+
         <div className="px-4 pb-3">
           <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
-            Objectif mensuel : <strong>{Math.round(settings.joursParMois * settings.heuresParJour * 10) / 10}h</strong>
+            Objectif par défaut : <strong>{Math.round(settings.joursParMois * settings.heuresParJour * 10) / 10}h</strong>
             {' · '}Journalier : <strong>{settings.heuresParJour}h</strong>
           </p>
         </div>
@@ -176,10 +272,14 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
 
       {/* Données */}
       <Section title="Données">
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 space-y-2">
           <button onClick={() => setShowExport(true)}
             className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
             ⬇ Exporter en CSV
+          </button>
+          <button onClick={() => setShowImport(true)}
+            className="w-full py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            📥 Importer depuis CSV
           </button>
         </div>
       </Section>
@@ -196,6 +296,21 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
         sessions={store.sessions}
         blocs={store.blocs}
         settings={store.settings}
+      />
+      <ImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        store={store}
+      />
+
+      <BlocFormModal
+        open={showBlocForm}
+        bloc={editBloc}
+        onSave={data => {
+          if (editBloc) store.updateBloc(editBloc.id, data)
+          else          store.addBloc(data)
+        }}
+        onClose={handleBlocClose}
       />
     </div>
   )

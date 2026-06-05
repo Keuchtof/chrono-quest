@@ -1,4 +1,4 @@
-export type ColorName = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'orange' | 'teal' | 'pink'
+export type ColorName = 'blue' | 'red' | 'green' | 'yellow' | 'purple' | 'orange' | 'teal' | 'pink' | 'gray'
 
 export interface Bloc {
   id: string
@@ -6,6 +6,7 @@ export interface Bloc {
   icon: string
   color: ColorName
   objectifJours: number
+  isRest?: boolean   // true = bloc Repos (non supprimable, non chronométrable)
 }
 
 export interface Session {
@@ -18,7 +19,8 @@ export interface Session {
   tag: string
   config: string
   posture: string
-  zone: string       // 'zone1' | 'zone2' | ''
+  zone: string         // 'zone1' | 'zone2' | ''
+  chargeNiveau?: number // 0 | undefined = non noté, 1-4
 }
 
 export interface ActiveTimer {
@@ -28,6 +30,7 @@ export interface ActiveTimer {
   config: string
   posture: string
   zone: string
+  chargeNiveau: number  // 0 = non noté, 1-4
 }
 
 export interface Settings {
@@ -37,4 +40,6 @@ export interface Settings {
   postures: string[]
   zoneName1: string   // ex: 'Alpes'
   zoneName2: string   // ex: 'Territoire'
+  /** Surcharges mensuelles : clé = 'YYYY-MM', valeur = nb jours travaillés */
+  joursParMoisOverrides?: Record<string, number>
 }

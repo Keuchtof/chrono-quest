@@ -49,22 +49,45 @@ export default function ExportModal({ open, onClose, sessions, blocs, settings }
       a.date.localeCompare(b.date) || a.startTime - b.startTime,
     )
 
-    const header = ['Date', 'Jour', 'Bloc', 'Durée (min)', 'Durée (h)', 'Configuration', 'Posture', 'Zone', 'Tag']
+    const q   = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
+    const row = (cells: (string | number)[]) => cells.map(q).join(';')
 
-    const rows = sorted.map(s => {
-      const bloc  = blocs.find(b => b.id === s.blocId)
-      const d     = new Date(s.date + 'T12:00:00')
-      const jour  = LONG_DAYS[d.getDay()]
-      const zone  = s.zone === 'zone1' ? settings.zoneName1 : s.zone === 'zone2' ? settings.zoneName2 : ''
+    const lines: string[] = []
+
+    // ── PARAMÈTRES ─────────────────────────────────────────────────────────────
+    lines.push(row(['# PARAMÈTRES']))
+    lines.push(row(['Jours par mois', 'Heures par jour', 'Zone 1', 'Zone 2']))
+    lines.push(row([
+      settings.joursParMois,
+      String(settings.heuresParJour).replace('.', ','),
+      settings.zoneName1,
+      settings.zoneName2,
+    ]))
+    lines.push('')
+
+    // ── BLOCS ──────────────────────────────────────────────────────────────────
+    lines.push(row(['# BLOCS']))
+    lines.push(row(['Nom', 'Icône', 'Couleur', 'Objectif (j/mois)']))
+    for (const b of blocs) {
+      lines.push(row([b.name, b.icon, b.color, b.objectifJours]))
+    }
+    lines.push('')
+
+    // ── SESSIONS ───────────────────────────────────────────────────────────────
+    lines.push(row(['# SESSIONS']))
+    lines.push(row(['Date', 'Jour', 'Bloc', 'Durée (min)', 'Durée (h)', 'Démarrage (ms)', 'Configuration', 'Posture', 'Zone', 'Tag', 'Charge (1-4)']))
+    for (const s of sorted) {
+      const bloc   = blocs.find(b => b.id === s.blocId)
+      const d      = new Date(s.date + 'T12:00:00')
+      const jour   = LONG_DAYS[d.getDay()]
+      const zone   = s.zone === 'zone1' ? settings.zoneName1 : s.zone === 'zone2' ? settings.zoneName2 : ''
       const durMin = Math.round(s.duration / 60)
-      const durH  = (s.duration / 3600).toFixed(2).replace('.', ',')
-      return [s.date, jour, bloc?.name ?? '', durMin, durH, s.config ?? '', s.posture ?? '', zone, s.tag ?? '']
-    })
+      const durH   = (s.duration / 3600).toFixed(2).replace('.', ',')
+      const charge = s.chargeNiveau ? String(s.chargeNiveau) : ''
+      lines.push(row([s.date, jour, bloc?.name ?? '', durMin, durH, s.startTime, s.config ?? '', s.posture ?? '', zone, s.tag ?? '', charge]))
+    }
 
-    const csv = [header, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'))
-      .join('\r\n')
-
+    const csv  = lines.join('\r\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
@@ -136,7 +159,7 @@ export default function ExportModal({ open, onClose, sessions, blocs, settings }
 
         {/* Hint */}
         <p className="text-xs text-gray-400 text-center">
-          Format CSV avec séparateur « ; » — compatible Excel
+          Format CSV avec sections blocs &amp; paramètres — séparateur « ; »
         </p>
 
         {/* Actions */}

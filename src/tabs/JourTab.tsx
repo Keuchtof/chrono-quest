@@ -5,16 +5,26 @@ import {
   formatDateFull, formatDateShort, formatDuration, secondsToDisplay,
   getDaySessions, getDateStr, addDays, formatTime,
   getWeekRange, getDatesInRange, getDaysInMonth, getFirstDayOffset,
-  getBalance, isWeekend, formatBalance, MINI_DAYS, MONTHS,
+  getBalance, isWeekend, formatBalance, MINI_DAYS, MONTHS, getMonthEnd,
+  calcDailyCharge, getJoursParMois,
 } from '../utils'
 import DonutChart from '../components/DonutChart'
 import Drawer from '../components/Drawer'
 import EditSessionModal from '../components/EditSessionModal'
 import AddSessionModal from '../components/AddSessionModal'
+import { ChargeDisplay } from '../components/ChargeSelector'
 import type { Session } from '../types'
 
 interface Props { store: Store; now: number }
-type View = 'jour' | 'semaine' | 'calendrier'
+type View = 'jour' | 'semaine' | 'mois' | 'calendrier'
+
+// Positive balance = exceeded target → red (risk of burn-out)
+// Negative balance = below target    → green (room left)
+function balColor(secs: number) { return secs >= 0 ? '#EF4444' : '#22C55E' }
+
+// Charge mentale
+function chargeZone(s: number)      { return s >= 13 ? 'Surcharge' : s >= 10 ? 'Tension' : s >= 8 ? 'Nominal' : 'Confort' }
+function chargeZoneColor(s: number) { return s >= 13 ? '#EF4444' : s >= 10 ? '#F97316' : s >= 8 ? '#EAB308' : '#22C55E' }
 
 export default function JourTab({ store, now }: Props) {
   const [view,        setView]        = useState<View>('jour')
@@ -28,11 +38,8 @@ export default function JourTab({ store, now }: Props) {
   const todayStr  = getDateStr()
   const isToday   = date === todayStr
 
-  function openDay(d: string) {
-    setDate(d)
-    setView('jour')
-    setActiveBloc(null)
-  }
+  function openDay(d: string) { setDate(d); setView('jour'); setActiveBloc(null) }
+  function openWeek(wMon: string) { setDate(wMon); setView('semaine') }
 
   // ─── Day view data ────────────────────────────────────────────────────────
   const daySessions = getDaySessions(store.sessions, date)
@@ -46,13 +53,24 @@ export default function JourTab({ store, now }: Props) {
     return { bloc: b, totalSecs: total, sessions: bSess }
   }).filter(b => b.totalSecs > 0)
 
-  const dayTotal   = blocStats.reduce((a, b) => a + b.totalSecs, 0)
-  const dailyObj   = store.settings.heuresParJour * 3600
+  const dayTotal    = blocStats.reduce((a, b) => a + b.totalSecs, 0)
+  const dailyObj    = store.settings.heuresParJour * 3600
   const dayProgress = dailyObj > 0 ? Math.min(dayTotal / dailyObj, 1) : 0
 
-  const zone1Secs  = daySessions.filter(s => s.zone === 'zone1').reduce((a, s) => a + s.duration, 0)
+  // Charge mentale du jour (sessions + timer actif si aujourd'hui)
+  const activeAsSess: Session | null = isToday && store.activeTimer ? {
+    id: '_active', blocId: store.activeTimer.blocId, date,
+    startTime: store.activeTimer.startTime, endTime: now,
+    duration: activeExtra, tag: '', config: '', posture: '', zone: '',
+    chargeNiveau: store.activeTimer.chargeNiveau,
+  } : null
+  const dayCharge      = calcDailyCharge(activeAsSess ? [...daySessions, activeAsSess] : daySessions)
+  const dayChargeHasData = (activeAsSess ? [...daySessions, activeAsSess] : daySessions)
+    .some(s => (s.chargeNiveau ?? 0) > 0)
+
+  const zone1Secs = daySessions.filter(s => s.zone === 'zone1').reduce((a, s) => a + s.duration, 0)
     + (isToday && store.activeTimer?.zone === 'zone1' ? activeExtra : 0)
-  const zone2Secs  = daySessions.filter(s => s.zone === 'zone2').reduce((a, s) => a + s.duration, 0)
+  const zone2Secs = daySessions.filter(s => s.zone === 'zone2').reduce((a, s) => a + s.duration, 0)
     + (isToday && store.activeTimer?.zone === 'zone2' ? activeExtra : 0)
 
   const dailyBalance = getBalance(
@@ -78,6 +96,7 @@ export default function JourTab({ store, now }: Props) {
   // ─── Week view data ───────────────────────────────────────────────────────
   const [weekMonday, weekSunday] = getWeekRange(date)
   const weekDates    = getDatesInRange(weekMonday, weekSunday)
+  const weekTarget   = 5 * store.settings.heuresParJour * 3600
 
   const weekDayData = weekDates.map(d => {
     const sess     = getDaySessions(store.sessions, d)
@@ -96,13 +115,51 @@ export default function JourTab({ store, now }: Props) {
   const weekBalance  = getBalance(store.sessions, store.settings, weekMonday, weekSunday, store.activeTimer, now)
   const weekIsCurrentWeek = weekDates.includes(todayStr)
 
+  // ─── Month view data ──────────────────────────────────────────────────────
+  const calIsCurrentMonth = calYear === new Date().getFullYear() && calMonth === new Date().getMonth()
+  const monthEnd          = getMonthEnd(calYear, calMonth)
+  const monthStart        = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`
+
+  // Group all days in the month by their ISO week (keyed by week's Monday)
+  const weekGroupMap = new Map<string, string[]>()
+  const daysInCurMonth = getDaysInMonth(calYear, calMonth)
+  for (let d = 1; d <= daysInCurMonth; d++) {
+    const ds   = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const [wm] = getWeekRange(ds)
+    if (!weekGroupMap.has(wm)) weekGroupMap.set(wm, [])
+    weekGroupMap.get(wm)!.push(ds)
+  }
+
+  const monthWeekData = [...weekGroupMap.entries()].map(([wMon, days], idx) => {
+    let total = 0, z1 = 0, z2 = 0
+    for (const d of days) {
+      const sess  = getDaySessions(store.sessions, d)
+      const isTod = d === todayStr
+      const ex    = isTod && store.activeTimer ? Math.round((now - store.activeTimer.startTime) / 1000) : 0
+      total += sess.reduce((a, s) => a + s.duration, 0) + ex
+      z1    += sess.filter(s => s.zone === 'zone1').reduce((a, s) => a + s.duration, 0)
+              + (isTod && store.activeTimer?.zone === 'zone1' ? ex : 0)
+      z2    += sess.filter(s => s.zone === 'zone2').reduce((a, s) => a + s.duration, 0)
+              + (isTod && store.activeTimer?.zone === 'zone2' ? ex : 0)
+    }
+    const balance = getBalance(
+      store.sessions, store.settings,
+      days[0], days[days.length - 1],
+      store.activeTimer, now,
+    )
+    return { wMon, days, total, z1, z2, balance, weekNum: idx + 1 }
+  })
+
+  const monthTotal2   = monthWeekData.reduce((a, w) => a + w.total, 0)
+  const monthBalance2 = getBalance(store.sessions, store.settings, monthStart, monthEnd, store.activeTimer, now)
+  const monthMaxTotal = Math.max(...monthWeekData.map(w => w.total), 1)
+  const monthObjSecs  = getJoursParMois(store.settings, calYear, calMonth) * store.settings.heuresParJour * 3600
+
   // ─── Calendar view data ───────────────────────────────────────────────────
   const daysInMonth  = getDaysInMonth(calYear, calMonth)
   const firstOffset  = getFirstDayOffset(calYear, calMonth)
-  const nowDate      = new Date()
-  const calIsCurrentMonth = calYear === nowDate.getFullYear() && calMonth === nowDate.getMonth()
 
-  // Blocs that have at least one session this calendar month (for legend)
+  // Blocs with sessions this calendar month (for legend)
   const calMonthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-`
   const calActiveBlocs = store.blocs.filter(b =>
     store.sessions.some(s => s.blocId === b.id && s.date.startsWith(calMonthPrefix)),
@@ -127,16 +184,20 @@ export default function JourTab({ store, now }: Props) {
     else setCalMonth(m => m + 1)
   }
 
+  const VIEW_LABELS: Record<View, string> = {
+    jour: 'Jour', semaine: 'Semaine', mois: 'Mois', calendrier: 'Calendrier',
+  }
+
   return (
     <div className="px-4 pt-4 pb-24 space-y-3">
 
       {/* View switcher */}
       <div className="bg-white rounded-2xl flex p-1 gap-1 shadow-sm">
-        {(['jour', 'semaine', 'calendrier'] as View[]).map(v => (
+        {(['jour', 'semaine', 'mois', 'calendrier'] as View[]).map(v => (
           <button key={v} onClick={() => setView(v)}
             className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
             style={view === v ? { backgroundColor: '#3B82F6', color: '#fff' } : { color: '#6B7280' }}>
-            {v === 'jour' ? 'Jour' : v === 'semaine' ? 'Semaine' : 'Calendrier'}
+            {VIEW_LABELS[v]}
           </button>
         ))}
       </div>
@@ -166,8 +227,7 @@ export default function JourTab({ store, now }: Props) {
               <div className="flex items-center justify-between mb-0.5">
                 <p className="text-xs font-semibold text-orange-500 tracking-wide">TEMPS DU JOUR</p>
                 {dayTotal > 0 && (
-                  <span className="text-xs font-bold"
-                    style={{ color: dailyBalance >= 0 ? '#22C55E' : '#EF4444' }}>
+                  <span className="text-xs font-bold" style={{ color: balColor(dailyBalance) }}>
                     {formatBalance(dailyBalance)}
                   </span>
                 )}
@@ -180,16 +240,31 @@ export default function JourTab({ store, now }: Props) {
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${dayProgress * 100}%`, background: 'linear-gradient(to right,#3B82F6,#22C55E)' }} />
               </div>
-              {/* Zone split */}
               {(zone1Secs > 0 || zone2Secs > 0) && (
                 <ZoneSplit z1={zone1Secs} z2={zone2Secs}
                   name1={store.settings.zoneName1} name2={store.settings.zoneName2} />
+              )}
+              {/* Score charge mentale */}
+              {dayTotal > 0 && (
+                <div className="flex items-center gap-1.5 text-xs mt-1.5">
+                  <span>🧠</span>
+                  {dayChargeHasData ? (
+                    <>
+                      <span className="font-semibold" style={{ color: chargeZoneColor(dayCharge) }}>
+                        {Math.round(dayCharge * 10) / 10} cerveaux
+                      </span>
+                      <span className="text-gray-400">· {chargeZone(dayCharge)}</span>
+                    </>
+                  ) : (
+                    <span className="text-gray-300">Charge non renseignée</span>
+                  )}
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Per bloc */}
+        {/* Per-bloc */}
         {blocStats.length === 0 && (
           <div className="text-center py-8 text-gray-400 text-sm">Aucune session ce jour</div>
         )}
@@ -218,17 +293,14 @@ export default function JourTab({ store, now }: Props) {
           )
         })}
 
-        {/* Config stats */}
         {configStats.length > 0 && (
           <StatBreakdown title="CONFIGURATION" color="#3B82F6" stats={configStats} total={dayTotal} />
         )}
-
-        {/* Posture stats */}
         {postureStats.length > 0 && (
           <StatBreakdown title="POSTURE" color="#8B5CF6" stats={postureStats} total={dayTotal} />
         )}
 
-        {/* Drawer sessions du bloc */}
+        {/* Bloc sessions drawer */}
         <Drawer open={!!activeBloc} onClose={() => setActiveBloc(null)}
           title={drawerBloc ? `${drawerBloc.icon} ${drawerBloc.name}` : ''}>
           {drawerSessions.length === 0 ? (
@@ -237,7 +309,7 @@ export default function JourTab({ store, now }: Props) {
             <div className="space-y-2">
               {drawerSessions.map(s => (
                 <div key={s.id} className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
                         <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>
@@ -248,11 +320,14 @@ export default function JourTab({ store, now }: Props) {
                         {s.tag     && <SChip label={s.tag}     color="#6B7280" />}
                       </div>
                       <span className="text-sm font-semibold text-gray-900">{formatDuration(s.duration)}</span>
+                      <ChargeDisplay niveau={s.chargeNiveau} />
                     </div>
-                    <button onClick={() => setEditSession(s)}
-                      className="w-8 h-8 flex items-center justify-center text-gray-400 rounded-lg">✏️</button>
-                    <button onClick={() => store.deleteSession(s.id)}
-                      className="w-8 h-8 flex items-center justify-center text-red-400 rounded-lg">🗑</button>
+                    <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
+                      <button onClick={() => setEditSession(s)}
+                        className="w-8 h-8 flex items-center justify-center text-gray-400 rounded-lg">✏️</button>
+                      <button onClick={() => store.deleteSession(s.id)}
+                        className="w-8 h-8 flex items-center justify-center text-red-400 rounded-lg">🗑</button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -280,12 +355,14 @@ export default function JourTab({ store, now }: Props) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-xs font-semibold text-gray-400 tracking-wider">TOTAL SEMAINE</p>
-              <p className="text-xl font-bold text-gray-900">{secondsToDisplay(weekTotal)}</p>
+              <p className="text-xl font-bold text-gray-900">
+                {secondsToDisplay(weekTotal)}
+                <span className="text-sm font-normal text-gray-400 ml-1">/ {secondsToDisplay(weekTarget)}</span>
+              </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-400">Balance</p>
-              <p className="text-lg font-bold"
-                style={{ color: weekBalance >= 0 ? '#22C55E' : '#EF4444' }}>
+              <p className="text-lg font-bold" style={{ color: balColor(weekBalance) }}>
                 {formatBalance(weekBalance)}
               </p>
             </div>
@@ -300,8 +377,8 @@ export default function JourTab({ store, now }: Props) {
               const z2H     = total > 0 && z2 > 0 ? (z2 / total) * barH : 0
               const untagH  = barH - z1H - z2H
               const hasZone = z1 > 0 || z2 > 0
-              const dow      = new Date(d + 'T12:00:00').getDay()
-              const letter   = MINI_DAYS[dow === 0 ? 6 : dow - 1]
+              const dow     = new Date(d + 'T12:00:00').getDay()
+              const letter  = MINI_DAYS[dow === 0 ? 6 : dow - 1]
               return (
                 <button key={d} onClick={() => openDay(d)}
                   className="flex-1 flex flex-col items-center gap-0.5 active:opacity-70">
@@ -311,8 +388,8 @@ export default function JourTab({ store, now }: Props) {
                         {hasZone ? (
                           <>
                             {untagH > 0 && <div style={{ height: `${untagH}px`, backgroundColor: '#E5E7EB' }} />}
-                            {z2H > 0   && <div style={{ height: `${z2H}px`,   backgroundColor: ZONE2_COLOR }} />}
-                            {z1H > 0   && <div style={{ height: `${z1H}px`,   backgroundColor: ZONE1_COLOR }} />}
+                            {z2H   > 0 && <div style={{ height: `${z2H}px`,   backgroundColor: ZONE2_COLOR }} />}
+                            {z1H   > 0 && <div style={{ height: `${z1H}px`,   backgroundColor: ZONE1_COLOR }} />}
                           </>
                         ) : (
                           <div style={{
@@ -353,7 +430,7 @@ export default function JourTab({ store, now }: Props) {
         {/* Day list */}
         <div className="space-y-2">
           {weekDayData.filter(d => d.total > 0).map(({ date: d, total }) => {
-            const sess    = getDaySessions(store.sessions, d)
+            const sess     = getDaySessions(store.sessions, d)
             const dIsToday = d === todayStr
             const dailyBal = getBalance(store.sessions, store.settings, d, d,
               dIsToday ? store.activeTimer : null, dIsToday ? now : undefined)
@@ -366,8 +443,7 @@ export default function JourTab({ store, now }: Props) {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-gray-900">{secondsToDisplay(total)}</p>
-                  <p className="text-xs font-bold"
-                    style={{ color: dailyBal >= 0 ? '#22C55E' : '#EF4444' }}>
+                  <p className="text-xs font-bold" style={{ color: balColor(dailyBal) }}>
                     {formatBalance(dailyBal)}
                   </p>
                 </div>
@@ -380,15 +456,120 @@ export default function JourTab({ store, now }: Props) {
         </div>
       </>}
 
+      {/* ═══════════════════════ MONTH VIEW ═══════════════════════════════ */}
+      {view === 'mois' && <>
+        {/* Month nav */}
+        <div className="bg-white rounded-2xl flex items-center justify-between px-4 py-3 shadow-sm">
+          <button onClick={prevMonth}
+            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg text-lg">‹</button>
+          <span className="text-sm font-semibold text-gray-800">{MONTHS[calMonth]} {calYear}</span>
+          <button onClick={nextMonth} disabled={calIsCurrentMonth}
+            className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg text-lg disabled:opacity-30">›</button>
+        </div>
+
+        {/* Month summary + bar chart */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-gray-400 tracking-wider">TOTAL MOIS</p>
+              <p className="text-xl font-bold text-gray-900">
+                {secondsToDisplay(monthTotal2)}
+                <span className="text-sm font-normal text-gray-400 ml-1">/ {secondsToDisplay(monthObjSecs)}</span>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-400">Balance</p>
+              <p className="text-lg font-bold" style={{ color: balColor(monthBalance2) }}>
+                {formatBalance(monthBalance2)}
+              </p>
+            </div>
+          </div>
+
+          {/* Bar chart — one bar per week of the month */}
+          <div className="flex gap-2 items-end" style={{ height: '100px' }}>
+            {monthWeekData.map(({ wMon, total, z1, z2, weekNum }) => {
+              const BAR_H   = 80
+              const barH    = monthMaxTotal > 0 ? (total / monthMaxTotal) * BAR_H : 0
+              const z1H     = total > 0 && z1 > 0 ? (z1 / total) * barH : 0
+              const z2H     = total > 0 && z2 > 0 ? (z2 / total) * barH : 0
+              const untagH  = barH - z1H - z2H
+              const hasZone = z1 > 0 || z2 > 0
+              return (
+                <button key={wMon} onClick={() => openWeek(wMon)}
+                  className="flex-1 flex flex-col items-center gap-0.5 active:opacity-70">
+                  <div className="w-full flex flex-col justify-end" style={{ height: `${BAR_H}px` }}>
+                    {total > 0 ? (
+                      <div className="w-full rounded-t overflow-hidden" style={{ height: `${barH}px` }}>
+                        {hasZone ? (
+                          <>
+                            {untagH > 0 && <div style={{ height: `${untagH}px`, backgroundColor: '#E5E7EB' }} />}
+                            {z2H   > 0 && <div style={{ height: `${z2H}px`,   backgroundColor: ZONE2_COLOR }} />}
+                            {z1H   > 0 && <div style={{ height: `${z1H}px`,   backgroundColor: ZONE1_COLOR }} />}
+                          </>
+                        ) : (
+                          <div style={{ height: '100%', backgroundColor: '#60A5FA' }} />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="w-full h-1 rounded" style={{ backgroundColor: '#EFF6FF' }} />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-semibold text-gray-500">S{weekNum}</span>
+                  {total > 0 && (
+                    <span className="text-[9px] text-gray-400 leading-none">{secondsToDisplay(total)}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Month zone split */}
+          {(() => {
+            const mz1 = monthWeekData.reduce((a, w) => a + w.z1, 0)
+            const mz2 = monthWeekData.reduce((a, w) => a + w.z2, 0)
+            if (mz1 + mz2 === 0) return null
+            return (
+              <div className="mt-3">
+                <ZoneSplit z1={mz1} z2={mz2} name1={store.settings.zoneName1} name2={store.settings.zoneName2} />
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* Week list */}
+        <div className="space-y-2">
+          {monthWeekData.filter(w => w.total > 0).map(({ wMon, days, total, balance, weekNum }) => (
+            <button key={wMon} onClick={() => openWeek(wMon)}
+              className="w-full bg-white rounded-2xl px-4 py-3 shadow-sm text-left flex items-center gap-3 active:scale-[0.99] transition-transform">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">
+                  Sem.&nbsp;{weekNum} · {formatDateShort(days[0])} – {formatDateShort(days[days.length - 1])}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {days.filter(d => getDaySessions(store.sessions, d).length > 0).length} jour{days.filter(d => getDaySessions(store.sessions, d).length > 0).length > 1 ? 's' : ''} actifs
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-gray-900">{secondsToDisplay(total)}</p>
+                <p className="text-xs font-bold" style={{ color: balColor(balance) }}>
+                  {formatBalance(balance)}
+                </p>
+              </div>
+            </button>
+          ))}
+          {monthWeekData.every(w => w.total === 0) && (
+            <div className="text-center py-8 text-gray-400 text-sm">Aucune session ce mois</div>
+          )}
+        </div>
+      </>}
+
       {/* ═══════════════════════ CALENDAR VIEW ═══════════════════════════ */}
       {view === 'calendrier' && <>
         {/* Month nav */}
         <div className="bg-white rounded-2xl flex items-center justify-between px-4 py-3 shadow-sm">
           <button onClick={prevMonth}
             className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg text-lg">‹</button>
-          <span className="text-sm font-semibold text-gray-800">
-            {MONTHS[calMonth]} {calYear}
-          </span>
+          <span className="text-sm font-semibold text-gray-800">{MONTHS[calMonth]} {calYear}</span>
           <button onClick={nextMonth} disabled={calIsCurrentMonth}
             className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg text-lg disabled:opacity-30">›</button>
         </div>
@@ -405,10 +586,10 @@ export default function JourTab({ store, now }: Props) {
           <div className="grid grid-cols-7 gap-y-0.5">
             {Array.from({ length: firstOffset }).map((_, i) => <div key={`e-${i}`} />)}
             {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day     = i + 1
-              const ds      = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-              const we      = isWeekend(ds)
-              const isTod   = ds === todayStr
+              const day      = i + 1
+              const ds       = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              const we       = isWeekend(ds)
+              const isTod    = ds === todayStr
               const isFuture = ds > todayStr
               const dominant = getDominantBloc(ds)
               return (

@@ -20,7 +20,10 @@ export default function BlocsTab({ store, now }: Props) {
     const bSess  = monthSessions.filter(s => s.blocId === blocId)
     const totalSecs = bSess.reduce((a, s) => a + s.duration, 0)
       + (store.activeTimer?.blocId === blocId ? Math.round((now - store.activeTimer.startTime) / 1000) : 0)
-    const workedDays = new Set(bSess.map(s => s.date)).size
+    // Convert total seconds to equivalent work-days (heuresParJour = 1 day)
+    const workedDays = store.settings.heuresParJour > 0
+      ? Math.round(totalSecs / (store.settings.heuresParJour * 3600) * 10) / 10
+      : 0
     return { totalSecs, workedDays }
   }
 
@@ -62,8 +65,10 @@ export default function BlocsTab({ store, now }: Props) {
                 </div>
                 <button onClick={() => handleEdit(bloc)}
                   className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">✏️</button>
-                <button onClick={() => { if (confirm(`Supprimer "${bloc.name}" ?`)) store.deleteBloc(bloc.id) }}
-                  className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50">🗑</button>
+                {!bloc.isRest && (
+                  <button onClick={() => { if (confirm(`Supprimer "${bloc.name}" ?`)) store.deleteBloc(bloc.id) }}
+                    className="w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50">🗑</button>
+                )}
               </div>
 
               {/* Monthly progress */}

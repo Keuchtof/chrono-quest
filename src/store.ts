@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Bloc, Session, ActiveTimer, Settings } from './types'
-import { DEFAULT_BLOCS, DEFAULT_SETTINGS } from './constants'
+import { DEFAULT_BLOCS, DEFAULT_SETTINGS, REPOS_BLOC } from './constants'
 import { generateId, getDateStr } from './utils'
 
 function load<T>(key: string, fallback: T): T {
@@ -27,15 +27,20 @@ function sessionFromTimer(t: ActiveTimer): Session {
     config: t.config,
     posture: t.posture,
     zone: t.zone,
+    chargeNiveau: t.chargeNiveau,
   }
 }
 
 function emptyTimer(blocId: string): ActiveTimer {
-  return { blocId, startTime: Date.now(), tag: '', config: '', posture: '', zone: '' }
+  return { blocId, startTime: Date.now(), tag: '', config: '', posture: '', zone: '', chargeNiveau: 0 }
 }
 
 export function useStore() {
-  const [blocs,       setBlocs]       = useState<Bloc[]>             (() => load('cq_blocs',    DEFAULT_BLOCS))
+  const [blocs,       setBlocs]       = useState<Bloc[]>(() => {
+    const loaded = load<Bloc[]>('cq_blocs', DEFAULT_BLOCS)
+    // Migration : s'assurer que le bloc Repos existe toujours
+    return loaded.some(b => b.isRest) ? loaded : [...loaded, REPOS_BLOC]
+  })
   const [sessions,    setSessions]    = useState<Session[]>          (() => load('cq_sessions', []))
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null> (() => load('cq_timer',    null))
   const [settings,    setSettings]    = useState<Settings>           (() => {
@@ -73,7 +78,7 @@ export function useStore() {
     })
   }, [])
 
-  const setTimerMeta = useCallback((meta: Partial<Pick<ActiveTimer, 'tag'|'config'|'posture'|'zone'>>) => {
+  const setTimerMeta = useCallback((meta: Partial<Pick<ActiveTimer, 'tag'|'config'|'posture'|'zone'|'chargeNiveau'>>) => {
     setActiveTimer(prev => prev ? { ...prev, ...meta } : null)
   }, [])
 
@@ -94,7 +99,11 @@ export function useStore() {
     setBlocs(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b))
   }, [])
   const deleteBloc = useCallback((id: string) => {
-    setBlocs(prev => prev.filter(b => b.id !== id))
+    setBlocs(prev => {
+      const target = prev.find(b => b.id === id)
+      if (target?.isRest) return prev  // Bloc Repos non supprimable
+      return prev.filter(b => b.id !== id)
+    })
     setActiveTimer(prev => prev?.blocId === id ? null : prev)
   }, [])
 
@@ -102,11 +111,46 @@ export function useStore() {
     setSettings(prev => ({ ...prev, ...patch }))
   }, [])
 
+  /**
+   * Bulk import from CSV.
+   * merge  → add new sessions (dedup by date+startTime), update blocs
+   * replace → replace blocs and sessions entirely
+   * settingsPatch is applied in both modes.
+   */
+  const importData = useCallback((
+    newBlocs:      Bloc[],
+    newSessions:   Session[],
+    settingsPatch: Partial<Settings>,
+    mode:          'merge' | 'replace',
+  ) => {
+    if (mode === 'replace') {
+      setBlocs(newBlocs)
+      setSessions(newSessions)
+    } else {
+      setBlocs(newBlocs) // already merged by caller
+      setSessions(prev => {
+        const exactKeys  = new Set(prev.map(s => `${s.date}|${s.startTime}`))
+        const fuzzyKeys  = new Set(prev.map(s => `${s.date}|${s.blocId}|${s.duration}`))
+        const toAdd = newSessions.filter(s => {
+          if (exactKeys.has(`${s.date}|${s.startTime}`))   return false
+          if (fuzzyKeys.has(`${s.date}|${s.blocId}|${s.duration}`)) return false
+          return true
+        })
+        return [...prev, ...toAdd].sort((a, b) =>
+          a.date.localeCompare(b.date) || a.startTime - b.startTime,
+        )
+      })
+    }
+    if (Object.keys(settingsPatch).length > 0) {
+      setSettings(prev => ({ ...prev, ...settingsPatch }))
+    }
+  }, [])
+
   return {
     blocs, sessions, activeTimer, settings,
     startTimer, stopTimer, setTimerMeta,
     addSession, updateSession, deleteSession,
-    addBloc, updateBloc, deleteBloc, updateSettings,
+    addBloc, updateBloc, deleteBloc, updateSettings, importData,
   }
 }
 

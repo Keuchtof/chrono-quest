@@ -20,3 +20,12 @@ body {
 /* Masquer les scrollbars */
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
+
+/* REC indicator blink */
+@keyframes rec-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-rec-blink {
+  animation: rec-blink 1s step-start infinite;
+}

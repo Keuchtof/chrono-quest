@@ -3,6 +3,7 @@ import type { Store } from '../store'
 import { COLORS } from '../constants'
 import { formatDateShort, formatDuration, secondsToDisplay, formatTime } from '../utils'
 import EditSessionModal from '../components/EditSessionModal'
+import { ChargeDisplay } from '../components/ChargeSelector'
 import type { Session } from '../types'
 
 interface Props { store: Store }
@@ -43,14 +44,17 @@ export default function HistoTab({ store }: Props) {
                 const color = bloc ? COLORS[bloc.color] : { main: '#9CA3AF', light: '#F9FAFB' }
                 return (
                   <div key={s.id}
-                    className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                    className={`flex items-start gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-0.5"
                       style={{ backgroundColor: color.light }}>
                       {bloc?.icon ?? '?'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{bloc?.name ?? 'Bloc supprimé'}</p>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <p className="text-sm font-semibold text-gray-900">{bloc?.name ?? 'Bloc supprimé'}</p>
+                        <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatDuration(s.duration)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>
                         {s.config  && <Chip label={s.config}  color="#3B82F6" />}
                         {s.posture && <Chip label={s.posture} color="#8B5CF6" />}
@@ -61,12 +65,14 @@ export default function HistoTab({ store }: Props) {
                           </button>
                         )}
                       </div>
+                      <ChargeDisplay niveau={s.chargeNiveau} />
                     </div>
-                    <span className="text-sm font-semibold text-gray-700 mr-1">{formatDuration(s.duration)}</span>
-                    <button onClick={() => setEditSession(s)}
-                      className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 rounded-lg">✏️</button>
-                    <button onClick={() => store.deleteSession(s.id)}
-                      className="w-7 h-7 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg">🗑</button>
+                    <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
+                      <button onClick={() => setEditSession(s)}
+                        className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 rounded-lg">✏️</button>
+                      <button onClick={() => store.deleteSession(s.id)}
+                        className="w-7 h-7 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg">🗑</button>
+                    </div>
                   </div>
                 )
               })}
