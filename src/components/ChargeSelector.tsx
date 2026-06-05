@@ -46,23 +46,34 @@ export function ChargeBadge({ niveau }: { niveau?: number }) {
 }
 
 /**
- * Affichage lecture seule du niveau de charge — style sélecteur (4 cases).
- * Le niveau actif est en couleur, les autres sont grisés.
+ * Affichage du niveau de charge — style sélecteur (4 cases).
+ * - Lecture seule si `onSelect` absent.
+ * - Cliquable si `onSelect` fourni (toggle : recliquer le niveau actif → 0).
  */
-export function ChargeDisplay({ niveau }: { niveau?: number }) {
+export function ChargeDisplay({ niveau, onSelect }: { niveau?: number; onSelect?: (level: number) => void }) {
   const active = niveau ?? 0
   return (
     <div className="flex gap-1 mt-1.5">
-      {CHARGE_OPTIONS.map(opt => (
-        <span
-          key={opt.level}
-          className="flex-1 text-center text-xs py-0.5 rounded-lg font-medium"
-          style={active === opt.level
-            ? { backgroundColor: opt.color, color: '#fff' }
-            : { backgroundColor: '#F3F4F6', color: '#D1D5DB' }}>
-          {opt.label}
-        </span>
-      ))}
+      {CHARGE_OPTIONS.map(opt => {
+        const isActive = active === opt.level
+        const style = isActive
+          ? { backgroundColor: opt.color, color: '#fff' }
+          : { backgroundColor: '#F3F4F6', color: '#D1D5DB' }
+        const cls = 'flex-1 text-center text-xs py-0.5 rounded-lg font-medium'
+        return onSelect ? (
+          <button
+            key={opt.level}
+            type="button"
+            title={`Niveau ${opt.level} — ${opt.name}`}
+            onClick={() => onSelect(isActive ? 0 : opt.level)}
+            className={`${cls} transition-colors active:scale-95`}
+            style={style}>
+            {opt.label}
+          </button>
+        ) : (
+          <span key={opt.level} className={cls} style={style}>{opt.label}</span>
+        )
+      })}
     </div>
   )
 }

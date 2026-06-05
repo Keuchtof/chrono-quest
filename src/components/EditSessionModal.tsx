@@ -3,6 +3,7 @@ import Modal from './Modal'
 import type { Session, Bloc, Settings } from '../types'
 import { getDateStr } from '../utils'
 import ChargeSelector from './ChargeSelector'
+import { REPOS_MOTIFS, REPOS_MOMENTS } from '../constants'
 
 interface Props {
   open: boolean
@@ -88,40 +89,47 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Charge mentale</label>
-          <ChargeSelector value={chargeNiveau} onChange={setChargeNiveau} />
-        </div>
+        {/* ── Champs spécifiques selon le type de bloc ──────────────── */}
+        {blocs.find(b => b.id === blocId)?.isRest ? (
+          <ReposFields motif={tag} moment={config} onMotif={setTag} onMoment={setConfig} />
+        ) : (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Charge mentale</label>
+              <ChargeSelector value={chargeNiveau} onChange={setChargeNiveau} />
+            </div>
 
-        <DimSelector label="Configuration" options={settings.configurations} value={config} onChange={setConfig} color="#3B82F6" />
-        <DimSelector label="Posture"        options={settings.postures}       value={posture} onChange={setPosture} color="#8B5CF6" />
+            <DimSelector label="Configuration" options={settings.configurations} value={config} onChange={setConfig} color="#3B82F6" />
+            <DimSelector label="Posture"        options={settings.postures}       value={posture} onChange={setPosture} color="#8B5CF6" />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Zone</label>
-          <div className="flex gap-2">
-            <button onClick={() => setZone(zone === 'zone1' ? '' : 'zone1')}
-              className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
-              style={zone === 'zone1'
-                ? { backgroundColor: '#3B82F6', color: '#fff', borderColor: '#3B82F6' }
-                : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
-              {settings.zoneName1}
-            </button>
-            <button onClick={() => setZone(zone === 'zone2' ? '' : 'zone2')}
-              className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
-              style={zone === 'zone2'
-                ? { backgroundColor: '#F97316', color: '#fff', borderColor: '#F97316' }
-                : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
-              {settings.zoneName2}
-            </button>
-          </div>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Zone</label>
+              <div className="flex gap-2">
+                <button onClick={() => setZone(zone === 'zone1' ? '' : 'zone1')}
+                  className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+                  style={zone === 'zone1'
+                    ? { backgroundColor: '#3B82F6', color: '#fff', borderColor: '#3B82F6' }
+                    : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
+                  {settings.zoneName1}
+                </button>
+                <button onClick={() => setZone(zone === 'zone2' ? '' : 'zone2')}
+                  className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+                  style={zone === 'zone2'
+                    ? { backgroundColor: '#F97316', color: '#fff', borderColor: '#F97316' }
+                    : { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }}>
+                  {settings.zoneName2}
+                </button>
+              </div>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Tag libre</label>
-          <input type="text" value={tag} onChange={e => setTag(e.target.value)}
-            placeholder="Ex : Séminaire Alpes..."
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tag libre</label>
+              <input type="text" value={tag} onChange={e => setTag(e.target.value)}
+                placeholder="Ex : Séminaire Alpes..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+            </div>
+          </>
+        )}
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600">Annuler</button>
@@ -150,5 +158,48 @@ function DimSelector({ label, options, value, onChange, color }: {
         ))}
       </div>
     </div>
+  )
+}
+
+function ReposFields({ motif, moment, onMotif, onMoment }: {
+  motif: string; moment: string; onMotif: (v: string) => void; onMoment: (v: string) => void
+}) {
+  const isDemi = (['Matin', 'Après-midi', 'Demi-journée'] as string[]).includes(moment)
+  const on  = { backgroundColor: '#6B7280', color: '#fff',    borderColor: '#6B7280' }
+  const off = { backgroundColor: '#F9FAFB', color: '#374151', borderColor: '#E5E7EB' }
+  return (
+    <>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Motif</label>
+        <div className="flex flex-wrap gap-1.5">
+          {REPOS_MOTIFS.map(m => (
+            <button key={m} type="button" onClick={() => onMotif(motif === m ? '' : m)}
+              className="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+              style={motif === m ? on : off}>{m}</button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Durée</label>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => onMoment(moment === 'Journée' ? '' : 'Journée')}
+            className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+            style={moment === 'Journée' ? on : off}>Journée</button>
+          <button type="button" onClick={() => onMoment(isDemi ? '' : 'Demi-journée')}
+            className="flex-1 py-2 rounded-xl border text-sm font-medium transition-colors"
+            style={isDemi ? on : off}>Demi-journée</button>
+        </div>
+        {isDemi && (
+          <div className="flex gap-2 mt-2">
+            {['Matin', 'Après-midi'].map(opt => (
+              <button key={opt} type="button"
+                onClick={() => onMoment(moment === opt ? 'Demi-journée' : opt)}
+                className="flex-1 py-1.5 rounded-xl border text-sm font-medium transition-colors"
+                style={moment === opt ? on : off}>{opt}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   )
 }

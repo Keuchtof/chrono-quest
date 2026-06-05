@@ -9,7 +9,17 @@ import type { Session } from '../types'
 interface Props { store: Store }
 
 export default function HistoTab({ store }: Props) {
-  const [editSession, setEditSession] = useState<Session | null>(null)
+  const [editSession,    setEditSession]    = useState<Session | null>(null)
+  const [expandedDates,  setExpandedDates]  = useState<Set<string>>(new Set())
+
+  function toggleDate(date: string) {
+    setExpandedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else                next.add(date)
+      return next
+    })
+  }
 
   const byDate: Record<string, Session[]> = {}
   for (const s of store.sessions) {
@@ -19,7 +29,7 @@ export default function HistoTab({ store }: Props) {
   const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
 
   return (
-    <div className="px-4 pt-4 pb-24 space-y-4">
+    <div className="px-4 pt-4 pb-24 space-y-3">
       {dates.length === 0 && (
         <div className="text-center py-12 text-gray-400 text-sm">
           <p className="text-3xl mb-2">📭</p>
@@ -29,54 +39,79 @@ export default function HistoTab({ store }: Props) {
       )}
 
       {dates.map(date => {
-        const sessions = byDate[date].sort((a, b) => b.startTime - a.startTime)
-        const dayTotal = sessions.reduce((a, s) => a + s.duration, 0)
+        const sessions  = byDate[date].sort((a, b) => b.startTime - a.startTime)
+        const dayTotal  = sessions.reduce((a, s) => a + s.duration, 0)
+        const expanded  = expandedDates.has(date)
 
         return (
           <div key={date}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-gray-700 capitalize">{formatDateShort(date)}</span>
-              <span className="text-xs text-gray-400">{secondsToDisplay(dayTotal)}</span>
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {sessions.map((s, i) => {
-                const bloc = store.blocs.find(b => b.id === s.blocId)
-                const color = bloc ? COLORS[bloc.color] : { main: '#9CA3AF', light: '#F9FAFB' }
-                return (
-                  <div key={s.id}
-                    className={`flex items-start gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-0.5"
-                      style={{ backgroundColor: color.light }}>
-                      {bloc?.icon ?? '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className="text-sm font-semibold text-gray-900">{bloc?.name ?? 'Bloc supprimé'}</p>
-                        <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatDuration(s.duration)}</span>
+            {/* ── En-tête du jour (cliquable) ──────────────────────────── */}
+            <button
+              onClick={() => toggleDate(date)}
+              className="w-full flex items-center justify-between px-1 mb-1.5 group">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 transition-transform duration-200"
+                  style={{ display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                  ▶
+                </span>
+                <span className="text-sm font-semibold text-gray-700 capitalize group-hover:text-gray-900">
+                  {formatDateShort(date)}
+                </span>
+                <span className="text-xs text-gray-400">
+                  ({sessions.length} session{sessions.length > 1 ? 's' : ''})
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-gray-500">{secondsToDisplay(dayTotal)}</span>
+            </button>
+
+            {/* ── Liste des sessions (dépliée) ─────────────────────────── */}
+            {expanded && (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                {sessions.map((s, i) => {
+                  const bloc  = store.blocs.find(b => b.id === s.blocId)
+                  const color = bloc ? COLORS[bloc.color] : { main: '#9CA3AF', light: '#F9FAFB' }
+                  return (
+                    <div key={s.id}
+                      className={`flex items-start gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-50' : ''}`}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-0.5"
+                        style={{ backgroundColor: color.light }}>
+                        {bloc?.icon ?? '?'}
                       </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>
-                        {s.config  && <Chip label={s.config}  color="#3B82F6" />}
-                        {s.posture && <Chip label={s.posture} color="#8B5CF6" />}
-                        {s.tag     && <Chip label={s.tag}     color="#6B7280" />}
-                        {!s.config && !s.posture && !s.tag && (
-                          <button onClick={() => setEditSession(s)} className="text-xs text-gray-400 italic">
-                            + tag...
-                          </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <p className="text-sm font-semibold text-gray-900">{bloc?.name ?? 'Bloc supprimé'}</p>
+                          <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatDuration(s.duration)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>
+                          {s.config  && <Chip label={s.config}  color="#3B82F6" />}
+                          {s.posture && <Chip label={s.posture} color="#8B5CF6" />}
+                          {s.tag     && <Chip label={s.tag}     color="#6B7280" />}
+                          {!s.config && !s.posture && !s.tag && !bloc?.isRest && (
+                            <button onClick={() => setEditSession(s)} className="text-xs text-gray-400 italic">
+                              + tag...
+                            </button>
+                          )}
+                        </div>
+                        {/* Charge cliquable — masquée pour le bloc Repos */}
+                        {!bloc?.isRest && (
+                          <ChargeDisplay
+                            niveau={s.chargeNiveau}
+                            onSelect={level => store.updateSession(s.id, { chargeNiveau: level })}
+                          />
                         )}
                       </div>
-                      <ChargeDisplay niveau={s.chargeNiveau} />
+                      <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
+                        <button onClick={() => setEditSession(s)}
+                          className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 rounded-lg">✏️</button>
+                        <button onClick={() => store.deleteSession(s.id)}
+                          className="w-7 h-7 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg">🗑</button>
+                      </div>
                     </div>
-                    <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
-                      <button onClick={() => setEditSession(s)}
-                        className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 rounded-lg">✏️</button>
-                      <button onClick={() => store.deleteSession(s.id)}
-                        className="w-7 h-7 flex items-center justify-center text-red-300 hover:text-red-500 rounded-lg">🗑</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })}

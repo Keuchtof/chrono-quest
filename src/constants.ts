@@ -54,3 +54,7 @@ export const EMOJI_OPTIONS = ['🏛️','🚀','🎉','🤝','⚙️','📋','�
 
 export const ZONE1_COLOR = '#3B82F6'
 export const ZONE2_COLOR = '#F97316'
+
+/** Tags spécifiques au bloc Repos */
+export const REPOS_MOTIFS  = ['RTT', 'Congé', 'Férié', 'Récupération'] as const
+export const REPOS_MOMENTS = ['Journée', 'Matin', 'Après-midi']        as const
