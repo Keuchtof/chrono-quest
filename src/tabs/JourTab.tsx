@@ -13,7 +13,7 @@ import Drawer from '../components/Drawer'
 import EditSessionModal from '../components/EditSessionModal'
 import AddSessionModal from '../components/AddSessionModal'
 import { ChargeDisplay } from '../components/ChargeSelector'
-import type { Session } from '../types'
+import type { Session, Bloc, ActiveTimer } from '../types'
 
 interface Props { store: Store; now: number }
 type View = 'jour' | 'semaine' | 'mois' | 'calendrier'
@@ -34,6 +34,7 @@ export default function JourTab({ store, now }: Props) {
   const [activeBloc,  setActiveBloc]  = useState<string | null>(null)
   const [editSession, setEditSession] = useState<Session | null>(null)
   const [showAdd,     setShowAdd]     = useState(false)
+  const [agendaView,  setAgendaView]  = useState(false)
 
   const todayStr  = getDateStr()
   const isToday   = date === todayStr
@@ -454,6 +455,29 @@ export default function JourTab({ store, now }: Props) {
             <div className="text-center py-8 text-gray-400 text-sm">Aucune session cette semaine</div>
           )}
         </div>
+
+        {/* Toggle agenda */}
+        <div className="flex justify-center">
+          <button onClick={() => setAgendaView(v => !v)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+            style={agendaView
+              ? { backgroundColor: '#3B82F6', color: '#fff' }
+              : { backgroundColor: '#F3F4F6', color: '#6B7280' }}>
+            📅 Vue agenda
+          </button>
+        </div>
+
+        {agendaView && (
+          <AgendaGrid
+            weekDates={weekDates}
+            sessions={store.sessions}
+            blocs={store.blocs}
+            activeTimer={store.activeTimer}
+            now={now}
+            todayStr={todayStr}
+            onEditSession={setEditSession}
+          />
+        )}
       </>}
 
       {/* ═══════════════════════ MONTH VIEW ═══════════════════════════════ */}
@@ -689,5 +713,163 @@ function SChip({ label, color }: { label: string; color: string }) {
   return (
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ backgroundColor: color + '22', color }}>{label}</span>
+  )
+}
+
+// ─── Agenda view ─────────────────────────────────────────────────────────────
+
+const PX_PER_HOUR = 60
+
+interface AgendaGridProps {
+  weekDates:     string[]
+  sessions:      Session[]
+  blocs:         Bloc[]
+  activeTimer:   ActiveTimer | null
+  now:           number
+  todayStr:      string
+  onEditSession: (s: Session) => void
+}
+
+function AgendaGrid({ weekDates, sessions, blocs, activeTimer, now, todayStr, onEditSession }: AgendaGridProps) {
+  // Detect visible hour range from sessions + active timer
+  let minHour = 8
+  let maxHour = 18
+
+  for (const d of weekDates) {
+    const midnight = new Date(d + 'T00:00:00').getTime()
+    for (const s of sessions.filter(ss => ss.date === d)) {
+      const sh = (s.startTime - midnight) / 3600000
+      const eh = sh + s.duration / 3600
+      if (sh < minHour) minHour = Math.floor(sh)
+      if (eh > maxHour) maxHour = Math.ceil(eh)
+    }
+  }
+  if (activeTimer) {
+    const midnight = new Date(todayStr + 'T00:00:00').getTime()
+    const sh = (activeTimer.startTime - midnight) / 3600000
+    const eh = (now - midnight) / 3600000
+    if (sh < minHour) minHour = Math.floor(sh)
+    if (eh > maxHour) maxHour = Math.ceil(eh)
+  }
+  minHour = Math.max(0,  minHour - 1)
+  maxHour = Math.min(24, maxHour + 1)
+
+  const totalHours = maxHour - minHour
+  const gridHeight = totalHours * PX_PER_HOUR
+  const hours      = Array.from({ length: totalHours + 1 }, (_, i) => minHour + i)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      {/* Day headers */}
+      <div className="flex border-b border-gray-100">
+        <div className="w-8 flex-shrink-0" />
+        {weekDates.map(d => {
+          const dow  = new Date(d + 'T12:00:00').getDay()
+          const ltr  = MINI_DAYS[dow === 0 ? 6 : dow - 1]
+          const num  = new Date(d + 'T12:00:00').getDate()
+          const isT  = d === todayStr
+          const isWe = isWeekend(d)
+          return (
+            <div key={d} className="flex-1 text-center py-1.5">
+              <div className="text-[9px] font-semibold leading-none mb-0.5"
+                style={{ color: isT ? '#3B82F6' : isWe ? '#D1D5DB' : '#9CA3AF' }}>{ltr}</div>
+              <div className="text-xs font-bold"
+                style={{ color: isT ? '#3B82F6' : isWe ? '#9CA3AF' : '#374151' }}>{num}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Scrollable grid */}
+      <div className="overflow-y-auto" style={{ maxHeight: '420px' }}>
+        <div className="flex" style={{ height: `${gridHeight}px` }}>
+
+          {/* Time labels */}
+          <div className="w-8 flex-shrink-0 relative" style={{ height: `${gridHeight}px` }}>
+            {hours.map(h => (
+              <div key={h} className="absolute right-1.5 text-right"
+                style={{ top: `${(h - minHour) * PX_PER_HOUR - 7}px` }}>
+                <span className="text-[9px] text-gray-400 font-medium">{h}h</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {weekDates.map(d => {
+            const midnight    = new Date(d + 'T00:00:00').getTime()
+            const daySessions = sessions.filter(s => s.date === d)
+            const isT         = d === todayStr
+            const isWe        = isWeekend(d)
+
+            return (
+              <div key={d} className="flex-1 relative border-l border-gray-100"
+                style={{ height: `${gridHeight}px`, backgroundColor: isWe ? '#FAFAFA' : '#fff' }}>
+
+                {/* Hour grid lines */}
+                {hours.map(h => (
+                  <div key={h} className="absolute left-0 right-0"
+                    style={{ top: `${(h - minHour) * PX_PER_HOUR}px`, borderTop: '1px solid #F3F4F6' }} />
+                ))}
+
+                {/* Half-hour lines */}
+                {hours.slice(0, -1).map(h => (
+                  <div key={`h${h}`} className="absolute left-0 right-0"
+                    style={{ top: `${(h - minHour) * PX_PER_HOUR + PX_PER_HOUR / 2}px`, borderTop: '1px dashed #F9FAFB' }} />
+                ))}
+
+                {/* Sessions */}
+                {daySessions.map(s => {
+                  const bloc   = blocs.find(b => b.id === s.blocId)
+                  const color  = bloc ? COLORS[bloc.color] : { main: '#9CA3AF', light: '#F3F4F6' }
+                  const startH = (s.startTime - midnight) / 3600000
+                  const top    = Math.max(0, (startH - minHour) * PX_PER_HOUR)
+                  const height = Math.max((s.duration / 3600) * PX_PER_HOUR, 6)
+                  return (
+                    <button key={s.id} onClick={() => onEditSession(s)}
+                      className="absolute left-px right-px rounded overflow-hidden text-left active:opacity-70 transition-opacity"
+                      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: color.main }}>
+                      {height >= 18 && (
+                        <div className="px-1 pt-0.5 overflow-hidden">
+                          <p className="text-[8px] font-bold text-white leading-tight truncate">
+                            {bloc?.icon}{height >= 28 ? ` ${bloc?.name ?? ''}` : ''}
+                          </p>
+                          {height >= 38 && (
+                            <p className="text-[8px] text-white opacity-80 leading-none truncate">
+                              {formatDuration(s.duration)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+
+                {/* Active timer (today only) */}
+                {isT && activeTimer && (() => {
+                  const bloc    = blocs.find(b => b.id === activeTimer.blocId)
+                  const color   = bloc ? COLORS[bloc.color] : { main: '#9CA3AF', light: '#F3F4F6' }
+                  const dur     = Math.round((now - activeTimer.startTime) / 1000)
+                  const startH  = (activeTimer.startTime - midnight) / 3600000
+                  const top     = Math.max(0, (startH - minHour) * PX_PER_HOUR)
+                  const height  = Math.max((dur / 3600) * PX_PER_HOUR, 6)
+                  return (
+                    <div className="absolute left-px right-px rounded overflow-hidden"
+                      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: color.main + 'bb', border: `1.5px solid ${color.main}` }}>
+                      {height >= 18 && (
+                        <div className="px-1 pt-0.5">
+                          <p className="text-[8px] font-bold text-white leading-tight truncate">
+                            {bloc?.icon} ●
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }
