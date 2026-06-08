@@ -190,6 +190,19 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
         </Field>
 
+        <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Afficher le week-end</p>
+            <p className="text-xs text-gray-400">Samedi et dimanche dans la vue semaine</p>
+          </div>
+          <button onClick={() => updateSettings({ showWeekend: !(settings.showWeekend ?? false) })}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0"
+            style={{ backgroundColor: (settings.showWeekend ?? false) ? '#3B82F6' : '#E5E7EB' }}>
+            <span className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+              style={{ transform: (settings.showWeekend ?? false) ? 'translateX(22px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
+
         {/* Exceptions par mois */}
         <div className="px-4 pb-4 space-y-3">
           <p className="text-xs font-semibold text-gray-500 tracking-wide pt-1">EXCEPTIONS PAR MOIS</p>

@@ -48,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   postures:       DEFAULT_POSTURES,
   zoneName1:      'Alpes',
   zoneName2:      'Territoire',
+  showWeekend:    false,
 }
 
 export const EMOJI_OPTIONS = ['🏛️','🚀','🎉','🤝','⚙️','📋','👥','💼','📊','💡','🔧','📞','✉️','🗂️','💰','🎯','📝','🔍','📅','🌱']

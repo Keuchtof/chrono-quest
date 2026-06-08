@@ -42,4 +42,6 @@ export interface Settings {
   zoneName2: string   // ex: 'Territoire'
   /** Surcharges mensuelles : clé = 'YYYY-MM', valeur = nb jours travaillés */
   joursParMoisOverrides?: Record<string, number>
+  /** Afficher samedi & dimanche dans la vue semaine (défaut : false) */
+  showWeekend?: boolean
 }

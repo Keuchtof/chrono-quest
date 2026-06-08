@@ -96,7 +96,9 @@ export default function JourTab({ store, now }: Props) {
 
   // ─── Week view data ───────────────────────────────────────────────────────
   const [weekMonday, weekSunday] = getWeekRange(date)
-  const weekDates    = getDatesInRange(weekMonday, weekSunday)
+  const allWeekDates = getDatesInRange(weekMonday, weekSunday)
+  const showWeekend  = store.settings.showWeekend ?? false
+  const weekDates    = showWeekend ? allWeekDates : allWeekDates.filter(d => !isWeekend(d))
   const weekTarget   = 5 * store.settings.heuresParJour * 3600
 
   const weekDayData = weekDates.map(d => {
@@ -114,7 +116,7 @@ export default function JourTab({ store, now }: Props) {
   const weekMaxTotal = Math.max(...weekDayData.map(d => d.total), 1)
   const weekTotal    = weekDayData.reduce((a, d) => a + d.total, 0)
   const weekBalance  = getBalance(store.sessions, store.settings, weekMonday, weekSunday, store.activeTimer, now)
-  const weekIsCurrentWeek = weekDates.includes(todayStr)
+  const weekIsCurrentWeek = allWeekDates.includes(todayStr)
 
   // ─── Month view data ──────────────────────────────────────────────────────
   const calIsCurrentMonth = calYear === new Date().getFullYear() && calMonth === new Date().getMonth()
