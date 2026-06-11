@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Store } from '../store'
-import { formatMonthYear, getMonthSessions, secondsToDisplay, calcVitals, getJoursParMois } from '../utils'
+import { formatMonthYear, getMonthSessions, secondsToDisplay, calcVitals, getMonthObjectiveSecs, pvColor } from '../utils'
 import { COLORS } from '../constants'
 
 interface Props { store: Store; now: number }
@@ -12,7 +12,7 @@ export default function Header({ store, now }: Props) {
   const monthTotal = monthSessions.filter(s => s.blocId !== reposId).reduce((s, sess) => s + sess.duration, 0)
   const activeExtra = store.activeTimer ? Math.round((now - store.activeTimer.startTime) / 1000) : 0
   const totalSecs = monthTotal + activeExtra
-  const objectiveSecs = getJoursParMois(store.settings, today.getFullYear(), today.getMonth()) * store.settings.heuresParJour * 3600
+  const objectiveSecs = getMonthObjectiveSecs(store.sessions, store.settings, today.getFullYear(), today.getMonth(), reposId)
   const progress = objectiveSecs > 0 ? Math.min(totalSecs / objectiveSecs, 1) : 0
 
   const activeBloc = store.activeTimer ? store.blocs.find(b => b.id === store.activeTimer!.blocId) : null
@@ -24,8 +24,7 @@ export default function Header({ store, now }: Props) {
     [store.sessions, store.settings, reposId]
   )
 
-  const pvRatio     = store.settings.joursParMois > 0 ? vitals.pv / store.settings.joursParMois : 1
-  const pvColor     = pvRatio >= 0.7 ? '#22C55E' : pvRatio >= 0.4 ? '#F59E0B' : '#EF4444'
+  const pvCol       = pvColor(vitals.pv)
   const pvLabel     = vitals.pv % 1 === 0 ? String(Math.round(vitals.pv)) : vitals.pv.toFixed(1)
   const energyColor = vitals.energy >= 60 ? '#22C55E' : vitals.energy >= 30 ? '#F59E0B' : '#EF4444'
 
@@ -53,7 +52,7 @@ export default function Header({ store, now }: Props) {
             <span className={`text-sm font-bold ${vitals.energy < 30 ? 'animate-rec-blink' : ''}`}
               style={{ color: energyColor }}>⚡{vitals.energy}%</span>
             <span className="w-px h-3.5 bg-gray-200 flex-shrink-0" />
-            <span className="text-sm font-bold" style={{ color: pvColor }}>❤️{pvLabel}</span>
+            <span className="text-sm font-bold" style={{ color: pvCol }}>❤️{pvLabel}</span>
           </div>
           <span className="text-[9px] font-semibold text-gray-400 tracking-wider leading-none">NRJ · VIE</span>
         </div>

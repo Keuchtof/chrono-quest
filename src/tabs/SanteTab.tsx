@@ -5,7 +5,7 @@ import { DAY_FEEL_OPTIONS } from '../constants'
 import {
   calcVitals, calcDailyCharge, chargeZone, chargeZoneColor,
   getDateStr, getDatesInRange, getWeekRange, isWeekend,
-  calcHeuresSup, formatBalance, feelChocCerveaux,
+  calcHeuresSup, formatBalance, feelChocCerveaux, pvColor, PV_MAX,
 } from '../utils'
 
 interface Props { store: Store; now: number }
@@ -22,8 +22,7 @@ export default function SanteTab({ store, now }: Props) {
     [store.sessions, store.settings, reposId]
   )
 
-  const pvRatio     = store.settings.joursParMois > 0 ? vitals.pv / store.settings.joursParMois : 1
-  const pvColor     = pvRatio >= 0.7 ? '#22C55E' : pvRatio >= 0.4 ? '#F59E0B' : '#EF4444'
+  const pvCol       = pvColor(vitals.pv)
   const pvLabel     = vitals.pv % 1 === 0 ? String(Math.round(vitals.pv)) : vitals.pv.toFixed(1)
   const energyColor = vitals.energy >= 60 ? '#22C55E' : vitals.energy >= 30 ? '#F59E0B' : '#EF4444'
 
@@ -55,7 +54,6 @@ export default function SanteTab({ store, now }: Props) {
   // ── Ressenti du jour (saisi dans l'onglet Jour) ───────────────────────────
   const todayFeel    = store.settings.dayFeel?.[getDateStr()] ?? 0
   const todayFeelOpt = todayFeel !== 0 ? DAY_FEEL_OPTIONS.find(o => o.value === todayFeel) : undefined
-  const pvMax        = store.settings.joursParMois + 10
 
   // ── Semaine courante ──────────────────────────────────────────────────────
   const today      = getDateStr()
@@ -121,9 +119,9 @@ export default function SanteTab({ store, now }: Props) {
         <div className="flex items-center justify-around py-2">
           <div className="flex flex-col items-center">
             <span className="text-4xl animate-float">❤️</span>
-            <span className="text-lg font-bold mt-1.5 leading-none" style={{ color: pvColor }}>
+            <span className="text-lg font-bold mt-1.5 leading-none" style={{ color: pvCol }}>
               {pvLabel}
-              <span className="text-xs font-normal text-gray-400"> / {pvMax}</span>
+              <span className="text-xs font-normal text-gray-400"> / {PV_MAX}</span>
             </span>
             <span className="text-[10px] text-gray-400 mt-0.5">Points de vie</span>
           </div>

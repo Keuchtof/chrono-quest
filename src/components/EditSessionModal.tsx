@@ -90,7 +90,9 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-          <input type="date" value={date} max={getDateStr()} onChange={e => setDate(e.target.value)}
+          {/* Congés posables à l'avance : pas de limite future pour le bloc Repos */}
+          <input type="date" value={date} max={isRest ? undefined : getDateStr()}
+            onChange={e => setDate(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
         </div>
 

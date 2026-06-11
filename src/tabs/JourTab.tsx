@@ -6,7 +6,7 @@ import {
   getDaySessions, getDateStr, addDays, formatTime,
   getWeekRange, getDatesInRange, getDaysInMonth, getFirstDayOffset,
   getBalance, isWeekend, formatBalance, MINI_DAYS, MONTHS, getMonthEnd,
-  calcDailyCharge, getJoursParMois, feelChocCerveaux,
+  calcDailyCharge, getMonthObjectiveSecs, feelChocCerveaux,
 } from '../utils'
 import { DAY_FEEL_OPTIONS } from '../constants'
 import DonutChart from '../components/DonutChart'
@@ -168,7 +168,7 @@ export default function JourTab({ store, now }: Props) {
   const monthTotal2   = monthWeekData.reduce((a, w) => a + w.total, 0)
   const monthBalance2 = getBalance(store.sessions, store.settings, monthStart, monthEnd, store.activeTimer, now, reposId)
   const monthMaxTotal = Math.max(...monthWeekData.map(w => w.total), 1)
-  const monthObjSecs  = getJoursParMois(store.settings, calYear, calMonth) * store.settings.heuresParJour * 3600
+  const monthObjSecs  = getMonthObjectiveSecs(store.sessions, store.settings, calYear, calMonth, reposId)
 
   // ─── Calendar view data ───────────────────────────────────────────────────
   const daysInMonth  = getDaysInMonth(calYear, calMonth)

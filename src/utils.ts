@@ -210,12 +210,34 @@ export function calcHeuresSup(
 }
 
 /**
- * Retourne le nombre de jours travaillés pour un mois donné.
- * Utilise la surcharge mensuelle si elle existe, sinon la valeur globale.
+ * Objectif d'heures du mois (en secondes), calculé automatiquement :
+ * jours ouvrés (lun–ven) × heures/jour, moins les congés saisis
+ * (journée = heuresParJour, demi-journée = 4h max, comme l'objectif journalier).
  */
-export function getJoursParMois(settings: Settings, year: number, month: number): number {
-  const key = `${year}-${String(month + 1).padStart(2, '0')}`
-  return settings.joursParMoisOverrides?.[key] ?? settings.joursParMois
+export function getMonthObjectiveSecs(
+  sessions: Session[],
+  settings: Settings,
+  year:     number,
+  month:    number,
+  reposId:  string,
+): number {
+  const ouvres = getWorkingDaysInMonth(year, month)
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`
+
+  // Crédit congés : un jour de semaine avec du Repos réduit l'objectif
+  const reposByDay = new Map<string, Session[]>()
+  for (const s of sessions) {
+    if (s.blocId !== reposId || !s.date.startsWith(prefix) || isWeekend(s.date)) continue
+    if (!reposByDay.has(s.date)) reposByDay.set(s.date, [])
+    reposByDay.get(s.date)!.push(s)
+  }
+  let creditHours = 0
+  for (const sess of reposByDay.values()) {
+    const allDemi = sess.every(s => s.config === 'Matin' || s.config === 'Après-midi' || s.config === 'Demi-journée')
+    creditHours += allDemi ? Math.min(4, settings.heuresParJour) : settings.heuresParJour
+  }
+
+  return Math.max(0, ouvres * settings.heuresParJour - creditHours) * 3600
 }
 
 export function getMonthStart(year: number, month: number): string {
@@ -250,6 +272,19 @@ export function getWorkingDaysInMonth(year: number, month: number): number {
 export { MINI_DAYS, MONTHS, SHORT_MONTHS }
 
 // ─── Charge mentale & Points de vie ──────────────────────────────────────────
+
+/** Capital de départ et plafond des Points de Vie (fixes, décorrélés des réglages) */
+export const PV_BASE = 20
+export const PV_MAX  = 30
+
+/** Couleur des PV : violet > 25, bleu > 20, vert ≥ 14, ambre ≥ 8, rouge sinon */
+export function pvColor(pv: number): string {
+  if (pv > 25)  return '#8B5CF6'
+  if (pv > 20)  return '#3B82F6'
+  if (pv >= 14) return '#22C55E'
+  if (pv >= 8)  return '#F59E0B'
+  return '#EF4444'
+}
 
 /** Majoration longue tâche (par session) */
 function longTaskMaj(duration: number): number {
@@ -383,7 +418,7 @@ export interface VitalsResult {
  * Énergie : démarre à 100 %, coûte selon le score journalier, récupère
  *   les weekends libres (+15 %) et jours de congé (+20 %).
  *
- * PV : démarre à settings.joursParMois.
+ * PV : démarre à PV_BASE (20), plafonné à PV_MAX (30).
  *   Pertes : score ≥ 16 → −2 ; score ≥ 13 ET énergie < 20 % → −1.
  *   Gains  : <6🧠/j → +0,5 (max 1/sem) ; congé → +1 (max 2/sem) ;
  *            weekend libre + semaine ≤ 50🧠 → +1 (max 2/sem).
@@ -405,7 +440,7 @@ export function calcVitals(
   }
 
   const empty: VitalsResult = {
-    pv: settings.joursParMois, energy: 100, debtLevel: 0, weekHistory: []
+    pv: PV_BASE, energy: 100, debtLevel: 0, weekHistory: []
   }
   if (byDate.size === 0) return empty
 
@@ -413,7 +448,7 @@ export function calcVitals(
   const allDates   = [...byDate.keys()].sort()
   const [firstMon] = getWeekRange(allDates[0])
 
-  let pv        = settings.joursParMois
+  let pv        = PV_BASE
   let energy    = 100
   let debtLevel = 0
   let streak50  = 0   // semaines consécutives > 50 cerveaux
@@ -528,9 +563,7 @@ export function calcVitals(
     pv += Math.min(reposDays, 2) * debtMult
     if (weekHasSessions && weekCerveaux <= 75)  pv += Math.min(freeWeekends, 2) * debtMult
 
-    // Plafond : joursParMois + 10 (généreux)
-    const pvMax = settings.joursParMois + 10
-    if (pv > pvMax) pv = pvMax
+    if (pv > PV_MAX) pv = PV_MAX
     if (pv < 0)     pv = 0
     energy = Math.max(0, Math.min(100, energy))
 

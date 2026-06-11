@@ -4,7 +4,6 @@ import ExportModal from '../components/ExportModal'
 import ImportModal from '../components/ImportModal'
 import BlocFormModal from '../components/BlocFormModal'
 import { isSupabaseConfigured, getSupabaseConfig, setSupabaseConfig } from '../lib/sync'
-import { MONTHS } from '../utils'
 import { COLORS } from '../constants'
 import type { Bloc } from '../types'
 
@@ -25,27 +24,6 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
 
   function handleEditBloc(bloc: Bloc)  { setEditBloc(bloc); setShowBlocForm(true) }
   function handleBlocClose()           { setShowBlocForm(false); setEditBloc(null) }
-
-  // Surcharges jours/mois
-  const today = new Date()
-  const defaultMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-  const [newOverrideMonth, setNewOverrideMonth] = useState(defaultMonthKey)
-  const [newOverrideDays,  setNewOverrideDays]  = useState(String(settings.joursParMois))
-
-  function addOverride() {
-    const days = parseInt(newOverrideDays)
-    if (!newOverrideMonth || !days || days < 1 || days > 31) return
-    updateSettings({ joursParMoisOverrides: { ...(settings.joursParMoisOverrides ?? {}), [newOverrideMonth]: days } })
-  }
-  function removeOverride(key: string) {
-    const overrides = { ...(settings.joursParMoisOverrides ?? {}) }
-    delete overrides[key]
-    updateSettings({ joursParMoisOverrides: overrides })
-  }
-  function monthKeyLabel(key: string) {
-    const [y, m] = key.split('-')
-    return `${MONTHS[parseInt(m) - 1]} ${y}`
-  }
 
   // Supabase config form
   const existing = getSupabaseConfig()
@@ -177,12 +155,6 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
 
       {/* Temps */}
       <Section title="Temps">
-        <Field label="Jours travaillés / mois (défaut)">
-          <input type="number" min="1" max="31"
-            value={settings.joursParMois}
-            onChange={e => updateSettings({ joursParMois: parseFloat(e.target.value) || 20 })}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
-        </Field>
         <Field label="Heures par jour">
           <input type="number" min="0.5" max="24" step="0.5"
             value={settings.heuresParJour}
@@ -203,45 +175,11 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
           </button>
         </div>
 
-        {/* Exceptions par mois */}
-        <div className="px-4 pb-4 space-y-3">
-          <p className="text-xs font-semibold text-gray-500 tracking-wide pt-1">EXCEPTIONS PAR MOIS</p>
-
-          {/* Liste des exceptions existantes */}
-          {Object.keys(settings.joursParMoisOverrides ?? {}).sort().map(key => (
-            <div key={key} className="flex items-center justify-between py-1.5 px-3 bg-blue-50 rounded-xl">
-              <span className="text-sm font-medium text-gray-700 capitalize">{monthKeyLabel(key)}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-blue-600">{settings.joursParMoisOverrides![key]}j</span>
-                <button onClick={() => removeOverride(key)}
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 font-bold text-sm transition-colors">
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {/* Formulaire d'ajout */}
-          <div className="flex gap-2">
-            <input type="month" value={newOverrideMonth}
-              onChange={e => setNewOverrideMonth(e.target.value)}
-              max={`${today.getFullYear() + 1}-12`}
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
-            <div className="relative w-20">
-              <input type="number" min="1" max="31" value={newOverrideDays}
-                onChange={e => setNewOverrideDays(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:border-blue-400 pr-6" />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">j</span>
-            </div>
-            <button onClick={addOverride}
-              className="px-3 py-2 rounded-xl bg-blue-500 text-white text-sm font-semibold">+</button>
-          </div>
-        </div>
-
         <div className="px-4 pb-3">
           <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
-            Objectif par défaut : <strong>{Math.round(settings.joursParMois * settings.heuresParJour * 10) / 10}h</strong>
-            {' · '}Journalier : <strong>{settings.heuresParJour}h</strong>
+            L'objectif mensuel est calculé automatiquement : jours ouvrés du mois − congés saisis
+            (bloc Repos), × {settings.heuresParJour}h. Posez vos congés et fériés à l'avance
+            via le bouton + pour un objectif juste dès le début du mois.
           </p>
         </div>
       </Section>
