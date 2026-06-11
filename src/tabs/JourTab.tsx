@@ -95,6 +95,13 @@ export default function JourTab({ store, now }: Props) {
   const drawerBloc     = activeBloc ? store.blocs.find(b => b.id === activeBloc) : null
   const drawerSessions = activeBloc ? daySessions.filter(s => s.blocId === activeBloc) : []
 
+  function setDayFeel(value: number) {
+    const dayFeel = { ...(store.settings.dayFeel ?? {}) }
+    if ((dayFeel[date] ?? 0) === value) delete dayFeel[date]
+    else dayFeel[date] = value
+    store.updateSettings({ dayFeel })
+  }
+
   const donutSegments = blocStats.map(b => ({
     id: b.bloc.id, value: b.totalSecs, color: COLORS[b.bloc.color].main,
   }))
@@ -166,6 +173,18 @@ export default function JourTab({ store, now }: Props) {
   // ─── Calendar view data ───────────────────────────────────────────────────
   const daysInMonth  = getDaysInMonth(calYear, calMonth)
   const firstOffset  = getFirstDayOffset(calYear, calMonth)
+
+  // Jours affichés (weekend masqué selon le réglage, comme la vue semaine)
+  const calVisibleDays: number[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    if (showWeekend || !isWeekend(ds)) calVisibleDays.push(d)
+  }
+  const calFirstOffset = showWeekend
+    ? firstOffset
+    : calVisibleDays.length > 0
+      ? new Date(`${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(calVisibleDays[0]).padStart(2, '0')}T12:00:00`).getDay() - 1
+      : 0
 
   // Blocs with sessions this calendar month (for legend)
   const calMonthPrefix = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-`
@@ -269,6 +288,24 @@ export default function JourTab({ store, now }: Props) {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Ressenti de la journée */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 tracking-wider mb-2.5">RESSENTI DE LA JOURNÉE</p>
+          <div className="flex gap-1.5">
+            {DAY_FEEL_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => setDayFeel(opt.value)}
+                className="flex-1 flex flex-col items-center py-2 rounded-xl border transition-all active:scale-95"
+                style={dayFeelValue === opt.value
+                  ? { backgroundColor: opt.value < 0 ? '#FEF2F2' : '#F0FDF4',
+                      borderColor: opt.value < 0 ? '#EF4444' : '#22C55E', borderWidth: 2 }
+                  : { backgroundColor: '#F9FAFB', borderColor: '#E5E7EB' }}>
+                <span className="text-xl leading-none">{opt.emoji}</span>
+                <span className="text-[8px] text-gray-400 mt-1 leading-none">{opt.effect}</span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -619,16 +656,15 @@ export default function JourTab({ store, now }: Props) {
         {/* Grid */}
         <div className="bg-white rounded-2xl p-3 shadow-sm">
           {/* Day headers */}
-          <div className="grid grid-cols-7 mb-1">
-            {MINI_DAYS.map((d, i) => (
+          <div className={`grid mb-1 ${showWeekend ? 'grid-cols-7' : 'grid-cols-5'}`}>
+            {(showWeekend ? MINI_DAYS : MINI_DAYS.slice(0, 5)).map((d, i) => (
               <div key={i} className="text-center text-[10px] font-semibold text-gray-400 py-1">{d}</div>
             ))}
           </div>
           {/* Cells */}
-          <div className="grid grid-cols-7 gap-y-0.5">
-            {Array.from({ length: firstOffset }).map((_, i) => <div key={`e-${i}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day      = i + 1
+          <div className={`grid gap-y-0.5 ${showWeekend ? 'grid-cols-7' : 'grid-cols-5'}`}>
+            {Array.from({ length: calFirstOffset }).map((_, i) => <div key={`e-${i}`} />)}
+            {calVisibleDays.map(day => {
               const ds       = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
               const we       = isWeekend(ds)
               const isTod    = ds === todayStr

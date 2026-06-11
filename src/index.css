@@ -29,3 +29,13 @@ body {
 .animate-rec-blink {
   animation: rec-blink 1s step-start infinite;
 }
+
+/* Effet flottant (cœur et ressenti dans Santé) */
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-7px) rotate(2deg); }
+}
+.animate-float {
+  animation: float-soft 3s ease-in-out infinite;
+  display: inline-block;
+}

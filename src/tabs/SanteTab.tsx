@@ -52,16 +52,10 @@ export default function SanteTab({ store, now }: Props) {
     return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`
   }
 
-  // ── Ressenti du jour ──────────────────────────────────────────────────────
-  const todayKey  = getDateStr()
-  const todayFeel = store.settings.dayFeel?.[todayKey] ?? 0
-
-  function setFeel(value: number) {
-    const dayFeel = { ...(store.settings.dayFeel ?? {}) }
-    if (todayFeel === value) delete dayFeel[todayKey]
-    else dayFeel[todayKey] = value
-    store.updateSettings({ dayFeel })
-  }
+  // ── Ressenti du jour (saisi dans l'onglet Jour) ───────────────────────────
+  const todayFeel    = store.settings.dayFeel?.[getDateStr()] ?? 0
+  const todayFeelOpt = todayFeel !== 0 ? DAY_FEEL_OPTIONS.find(o => o.value === todayFeel) : undefined
+  const pvMax        = store.settings.joursParMois + 10
 
   // ── Semaine courante ──────────────────────────────────────────────────────
   const today      = getDateStr()
@@ -123,15 +117,32 @@ export default function SanteTab({ store, now }: Props) {
           </p>
         </div>
 
-        {/* PV + Dette + Heures sup */}
-        <div className="flex gap-2">
-          <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
-            <div className="text-xs text-gray-400 mb-1">Points de vie</div>
-            <div className="text-lg font-bold leading-none" style={{ color: pvColor }}>
-              ❤️ {pvLabel}
-            </div>
-            <div className="text-[10px] text-gray-400 mt-1">/ {store.settings.joursParMois}</div>
+        {/* Héros : cœur + ressenti du jour */}
+        <div className="flex items-center justify-around py-2">
+          <div className="flex flex-col items-center">
+            <span className="text-4xl animate-float">❤️</span>
+            <span className="text-lg font-bold mt-1.5 leading-none" style={{ color: pvColor }}>
+              {pvLabel}
+              <span className="text-xs font-normal text-gray-400"> / {pvMax}</span>
+            </span>
+            <span className="text-[10px] text-gray-400 mt-0.5">Points de vie</span>
           </div>
+          <div className="flex flex-col items-center">
+            <span className={`text-4xl ${todayFeelOpt ? 'animate-float' : 'opacity-30'}`}
+              style={{ animationDelay: '0.6s' }}>
+              {todayFeelOpt?.emoji ?? '😶'}
+            </span>
+            <span className="text-xs font-semibold mt-1.5 leading-none text-gray-700">
+              {todayFeelOpt?.label ?? '—'}
+            </span>
+            <span className="text-[10px] text-gray-400 mt-0.5">
+              {todayFeelOpt ? 'Ressenti du jour' : 'À noter dans l\'onglet Jour'}
+            </span>
+          </div>
+        </div>
+
+        {/* Dette + Heures sup */}
+        <div className="flex gap-2">
           <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
             <div className="text-xs text-gray-400 mb-1">Dette</div>
             <div className="text-sm font-bold leading-none" style={{ color: DEBT_COLORS[vitals.debtLevel] }}>
@@ -176,28 +187,6 @@ export default function SanteTab({ store, now }: Props) {
         </button>
         <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
           +2 % d'énergie par verre, −1 % par créneau de 2h manqué (8h–20h, jours travaillés uniquement).
-        </p>
-      </div>
-
-      {/* ── Ressenti du jour ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm p-4">
-        <p className="text-xs font-semibold text-gray-400 tracking-wider mb-3">RESSENTI DU JOUR</p>
-        <div className="flex gap-1.5">
-          {DAY_FEEL_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => setFeel(opt.value)}
-              className="flex-1 flex flex-col items-center py-2 rounded-xl border transition-all active:scale-95"
-              style={todayFeel === opt.value
-                ? { backgroundColor: opt.value < 0 ? '#FEF2F2' : '#F0FDF4',
-                    borderColor: opt.value < 0 ? '#EF4444' : '#22C55E', borderWidth: 2 }
-                : { backgroundColor: '#F9FAFB', borderColor: '#E5E7EB' }}>
-              <span className="text-xl leading-none">{opt.emoji}</span>
-              <span className="text-[8px] text-gray-400 mt-1 leading-none">{opt.effect}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-          Choc 😕😖😵 : ajoute des cerveaux au score du jour (impacte énergie, PV, dette).
-          Satisfaction 🙂😄🤩 : restaure de l'énergie en fin de journée. Re-cliquer pour annuler.
         </p>
       </div>
 
