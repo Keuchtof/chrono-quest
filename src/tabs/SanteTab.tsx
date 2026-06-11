@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import type { Store } from '../store'
 import type { Session } from '../types'
+import { DAY_FEEL_OPTIONS } from '../constants'
 import {
   calcVitals, calcDailyCharge, chargeZone, chargeZoneColor,
   getDateStr, getDatesInRange, getWeekRange, isWeekend,
-  calcHeuresSup, formatBalance,
+  calcHeuresSup, formatBalance, feelChocCerveaux,
 } from '../utils'
 
 interface Props { store: Store; now: number }
@@ -51,6 +52,17 @@ export default function SanteTab({ store, now }: Props) {
     return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`
   }
 
+  // ── Ressenti du jour ──────────────────────────────────────────────────────
+  const todayKey  = getDateStr()
+  const todayFeel = store.settings.dayFeel?.[todayKey] ?? 0
+
+  function setFeel(value: number) {
+    const dayFeel = { ...(store.settings.dayFeel ?? {}) }
+    if (todayFeel === value) delete dayFeel[todayKey]
+    else dayFeel[todayKey] = value
+    store.updateSettings({ dayFeel })
+  }
+
   // ── Semaine courante ──────────────────────────────────────────────────────
   const today      = getDateStr()
   const [wMon]     = getWeekRange(today)
@@ -78,7 +90,7 @@ export default function SanteTab({ store, now }: Props) {
         daySessions = [...stored, fake]
       }
     }
-    weekCerveaux += calcDailyCharge(daySessions)
+    weekCerveaux += calcDailyCharge(daySessions) + feelChocCerveaux(store.settings.dayFeel?.[d] ?? 0)
   }
 
   const zone      = chargeZone(weekCerveaux)
@@ -163,7 +175,29 @@ export default function SanteTab({ store, now }: Props) {
             : `⏳ Prochain verre dans ${cooldownLabel(cooldownMs)}`}
         </button>
         <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-          +2 % d'énergie par verre, −2 % par créneau de 2h manqué (8h–20h, jours travaillés uniquement).
+          +2 % d'énergie par verre, −1 % par créneau de 2h manqué (8h–20h, jours travaillés uniquement).
+        </p>
+      </div>
+
+      {/* ── Ressenti du jour ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm p-4">
+        <p className="text-xs font-semibold text-gray-400 tracking-wider mb-3">RESSENTI DU JOUR</p>
+        <div className="flex gap-1.5">
+          {DAY_FEEL_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => setFeel(opt.value)}
+              className="flex-1 flex flex-col items-center py-2 rounded-xl border transition-all active:scale-95"
+              style={todayFeel === opt.value
+                ? { backgroundColor: opt.value < 0 ? '#FEF2F2' : '#F0FDF4',
+                    borderColor: opt.value < 0 ? '#EF4444' : '#22C55E', borderWidth: 2 }
+                : { backgroundColor: '#F9FAFB', borderColor: '#E5E7EB' }}>
+              <span className="text-xl leading-none">{opt.emoji}</span>
+              <span className="text-[8px] text-gray-400 mt-1 leading-none">{opt.effect}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+          Choc 😕😖😵 : ajoute des cerveaux au score du jour (impacte énergie, PV, dette).
+          Satisfaction 🙂😄🤩 : restaure de l'énergie en fin de journée. Re-cliquer pour annuler.
         </p>
       </div>
 
@@ -184,12 +218,12 @@ export default function SanteTab({ store, now }: Props) {
         </div>
         <div>
           <div className="flex justify-between text-xs text-gray-400 mb-1">
-            <span>Seuil weekend libre (&lt; 50🧠)</span>
-            <span>{Math.min(Math.round(weekCerveaux), 50)} / 50</span>
+            <span>Seuil semaine lourde (75🧠)</span>
+            <span>{Math.min(Math.round(weekCerveaux), 75)} / 75</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(weekCerveaux / 50 * 100, 100)}%`, backgroundColor: zoneColor }} />
+              style={{ width: `${Math.min(weekCerveaux / 75 * 100, 100)}%`, backgroundColor: zoneColor }} />
           </div>
         </div>
       </div>
@@ -258,25 +292,31 @@ function GuideCard() {
             La fragmentation (nombreuses sessions) majore le score.
           </p>
           <p>
-            ⚡ <strong>Énergie</strong> — Démarre à 100 %. Chaque jour de travail consomme de l'énergie selon
-            la charge (5 % à 35 %). Les weekends libres (+15 %) et jours de congé (+20 %) la restaurent.
+            ⚡ <strong>Énergie</strong> — Démarre à 100 %. Chaque jour de travail consomme selon
+            la charge (−4 % à −25 %). Récupération : weekend libre +15 % (+8 % seulement si la semaine
+            dépasse 75🧠), congé +20 %, journée courte +4 à +15 %, journée satisfaisante +3 à +10 %.
           </p>
           <p>
-            ❤️ <strong>Points de vie</strong> — Perdus sur les journées surchargées (≥ 16🧠 → −2 ;
-            ≥ 13🧠 et énergie &lt; 20 % → −1). Gagnés lors des semaines calmes, congés et weekends libres.
+            ❤️ <strong>Points de vie</strong> — Perdus sur les journées brutales (≥ 28🧠 → −2 ;
+            ≥ 22🧠 et énergie &lt; 25 % → −1) et lors d'un choc de rythme (semaine &gt; 75🧠 faisant
+            plus d'1,5× la précédente → −1). Gagnés lors des semaines calmes, congés et weekends libres.
             Les gains sont divisés par 2 si la dette est active.
           </p>
           <p>
-            ⛅ <strong>Dette</strong> — S'accumule après plusieurs semaines intenses (&gt; 50🧠/sem).
-            Gelée entre 41–50🧠. Se résorbe sous 40🧠/sem. Pénalise les gains de PV tant qu'elle est active.
+            ⛅ <strong>Dette</strong> — S'accumule après plusieurs semaines intenses (&gt; 75🧠/sem).
+            Gelée entre 61–75🧠. Se résorbe sous 60🧠/sem. Pénalise les gains de PV tant qu'elle est active.
+          </p>
+          <p>
+            😵 <strong>Ressenti</strong> — Un choc ajoute 2/4/8🧠 au score du jour ;
+            une journée satisfaisante restaure 3/6/10 % d'énergie.
           </p>
           <div className="bg-gray-50 rounded-xl px-3 py-2 mt-1">
             <p className="font-semibold text-gray-700 mb-1">Zones journalières</p>
             <p>
-              <span className="text-green-500 font-medium">Confort</span> ≤ 6 ·{' '}
-              <span className="text-amber-500 font-medium">Nominal</span> ≤ 10 ·{' '}
-              <span className="text-orange-500 font-medium">Tension</span> ≤ 13 ·{' '}
-              <span className="text-red-500 font-medium">Surcharge</span> &gt; 13
+              <span className="text-green-500 font-medium">Confort</span> ≤ 10 ·{' '}
+              <span className="text-amber-500 font-medium">Nominal</span> ≤ 16 ·{' '}
+              <span className="text-orange-500 font-medium">Tension</span> ≤ 24 ·{' '}
+              <span className="text-red-500 font-medium">Surcharge</span> &gt; 24
             </p>
           </div>
         </div>

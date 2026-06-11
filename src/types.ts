@@ -50,4 +50,6 @@ export interface Settings {
   hsStockDate?: string
   /** Horodatages des verres d'eau (ms epoch) — synchronisé via settings */
   waterLog?: number[]
+  /** Ressenti par jour : clé = 'YYYY-MM-DD', valeur = −3..−1 (choc) ou 1..3 (satisfaction) */
+  dayFeel?: Record<string, number>
 }

@@ -293,9 +293,9 @@ export function calcSessionScore(s: Session): number {
 
 /** Zone de charge selon le score journalier */
 export function chargeZone(score: number): 'confort' | 'nominal' | 'tension' | 'surcharge' {
-  if (score <= 6)  return 'confort'
-  if (score <= 10) return 'nominal'
-  if (score <= 13) return 'tension'
+  if (score <= 10) return 'confort'
+  if (score <= 16) return 'nominal'
+  if (score <= 24) return 'tension'
   return 'surcharge'
 }
 
@@ -311,10 +311,26 @@ export function chargeZoneColor(score: number): string {
 
 /** Coût énergétique journalier selon le score de cerveaux */
 function energyCostForScore(score: number): number {
-  if (score > 13) return 35
-  if (score > 10) return 20
-  if (score > 8)  return 10
-  if (score > 0)  return 5
+  if (score > 24) return 25
+  if (score > 16) return 15
+  if (score > 10) return 8
+  if (score > 0)  return 4
+  return 0
+}
+
+/** Cerveaux ajoutés au score du jour par un choc (ressenti négatif) */
+export function feelChocCerveaux(feel: number): number {
+  if (feel === -3) return 8
+  if (feel === -2) return 4
+  if (feel === -1) return 2
+  return 0
+}
+
+/** Énergie restaurée en fin de journée par une journée satisfaisante */
+function feelEnergyBonus(feel: number): number {
+  if (feel === 3) return 10
+  if (feel === 2) return 6
+  if (feel === 1) return 3
   return 0
 }
 
@@ -345,7 +361,7 @@ function waterDelta(dayStr: string, waterLog: number[], todayStr: string): numbe
   const dayEnd   = dayStart + 86_400_000
   const drinks   = waterLog.filter(t => t >= dayStart && t < dayEnd).length
   const counted  = Math.min(drinks, slots)
-  return counted * 2 - (slots - counted) * 2
+  return counted * 2 - (slots - counted) * 1
 }
 
 export interface VitalsResult {
@@ -409,6 +425,8 @@ export function calcVitals(
     ? getDateStr(new Date(Math.min(...waterLog)))
     : null
 
+  let prevWeekCerveaux = 0  // pour le choc de rythme
+
   const weekHistory: VitalsResult['weekHistory'] = []
   let curMon = firstMon
 
@@ -429,26 +447,29 @@ export function calcVitals(
 
       if (all.length > 0) weekHasSessions = true
 
+      const feel = settings.dayFeel?.[d] ?? 0
+
       if (isWeekend(d)) {
         if (nonRepos.length > 0) {
-          const score = calcDailyCharge(nonRepos)
+          const score = calcDailyCharge(nonRepos) + feelChocCerveaux(feel)
           weekCerveaux += score
           energy -= energyCostForScore(score)
-          if (score >= 16)                        pv -= 2
-          else if (score >= 13 && energy < 20)    pv -= 1
-          if (score > 0 && score < 6)             lowChargeDay = true
+          if (score >= 28)                        pv -= 2
+          else if (score >= 22 && energy < 25)    pv -= 1
+          if (score > 0 && score < 10)            lowChargeDay = true
         } else {
           freeWeekends++
-          energy = Math.min(100, energy + 15)
+          // Récupération dégradée si la semaine est déjà lourde (> 75🧠)
+          energy = Math.min(100, energy + (weekCerveaux > 75 ? 8 : 15))
         }
       } else {
         if (nonRepos.length > 0) {
-          const score = calcDailyCharge(nonRepos)
+          const score = calcDailyCharge(nonRepos) + feelChocCerveaux(feel)
           weekCerveaux += score
           energy -= energyCostForScore(score)
-          if (score >= 16)                        pv -= 2
-          else if (score >= 13 && energy < 20)    pv -= 1
-          if (score > 0 && score < 6)             lowChargeDay = true
+          if (score >= 28)                        pv -= 2
+          else if (score >= 22 && energy < 25)    pv -= 1
+          if (score > 0 && score < 10)            lowChargeDay = true
           // Journée courte : récupération partielle
           const target = getDayTargetSecs(d, all, reposId, settings)
           const worked = nonRepos.reduce((a, s) => a + s.duration, 0)
@@ -459,6 +480,8 @@ export function calcVitals(
           energy = Math.min(100, energy + 20)
         }
       }
+      // Journée satisfaisante : restauration d'énergie
+      if (feel > 0) energy = Math.min(100, energy + feelEnergyBonus(feel))
       // Hydratation (jours travaillés, à partir du premier verre enregistré)
       if (waterStartDay && d >= waterStartDay && nonRepos.length > 0) {
         energy = Math.min(100, energy + waterDelta(d, waterLog, todayStr))
@@ -468,18 +491,18 @@ export function calcVitals(
 
     // ── Mise à jour de la dette ────────────────────────────────────────────
     if (weekHasSessions) {
-      if (weekCerveaux > 60) {
+      if (weekCerveaux > 90) {
         streak60++
         streak50++
-      } else if (weekCerveaux > 50) {
+      } else if (weekCerveaux > 75) {
         streak50++
         streak60 = 0
-      } else if (weekCerveaux <= 40) {
+      } else if (weekCerveaux <= 60) {
         streak50 = 0
         streak60 = 0
         if (debtLevel > 0) debtLevel--
       }
-      // 41–50 cerveaux : gelé (aucun changement)
+      // 61–75 cerveaux : gelé (aucun changement)
 
       const newDebt =
         streak50 >= 8 || streak60 >= 4 ? 3 :
@@ -493,11 +516,17 @@ export function calcVitals(
       }
     }
 
+    // ── Choc de rythme : semaine lourde après une semaine bien plus calme ──
+    if (prevWeekCerveaux > 0 && weekCerveaux > 75 && weekCerveaux > prevWeekCerveaux * 1.5) {
+      pv -= 1
+    }
+    if (weekHasSessions) prevWeekCerveaux = weekCerveaux
+
     // ── Gains PV hebdomadaires ────────────────────────────────────────────
     const debtMult = debtLevel > 0 ? 0.5 : 1
     if (lowChargeDay)                           pv += 0.5 * debtMult
     pv += Math.min(reposDays, 2) * debtMult
-    if (weekHasSessions && weekCerveaux <= 50)  pv += Math.min(freeWeekends, 2) * debtMult
+    if (weekHasSessions && weekCerveaux <= 75)  pv += Math.min(freeWeekends, 2) * debtMult
 
     // Plafond : joursParMois + 10 (généreux)
     const pvMax = settings.joursParMois + 10

@@ -59,3 +59,16 @@ export const ZONE2_COLOR = '#F97316'
 /** Tags spécifiques au bloc Repos */
 export const REPOS_MOTIFS  = ['RTT', 'Congé', 'Férié', 'Récupération'] as const
 export const REPOS_MOMENTS = ['Journée', 'Matin', 'Après-midi']        as const
+
+/**
+ * Ressenti journalier : chocs (négatif, ajoutent des cerveaux au score du jour)
+ * et satisfactions (positif, restaurent de l'énergie en fin de journée).
+ */
+export const DAY_FEEL_OPTIONS = [
+  { value: -3, emoji: '😵', label: 'Choc fort',   effect: '+8🧠' },
+  { value: -2, emoji: '😖', label: 'Choc moyen',  effect: '+4🧠' },
+  { value: -1, emoji: '😕', label: 'Choc léger',  effect: '+2🧠' },
+  { value:  1, emoji: '🙂', label: 'Bien',        effect: '+3 ⚡' },
+  { value:  2, emoji: '😄', label: 'Très bien',   effect: '+6 ⚡' },
+  { value:  3, emoji: '🤩', label: 'Excellent',   effect: '+10 ⚡' },
+] as const

@@ -6,8 +6,9 @@ import {
   getDaySessions, getDateStr, addDays, formatTime,
   getWeekRange, getDatesInRange, getDaysInMonth, getFirstDayOffset,
   getBalance, isWeekend, formatBalance, MINI_DAYS, MONTHS, getMonthEnd,
-  calcDailyCharge, getJoursParMois,
+  calcDailyCharge, getJoursParMois, feelChocCerveaux,
 } from '../utils'
+import { DAY_FEEL_OPTIONS } from '../constants'
 import DonutChart from '../components/DonutChart'
 import Drawer from '../components/Drawer'
 import EditSessionModal from '../components/EditSessionModal'
@@ -23,8 +24,8 @@ type View = 'jour' | 'semaine' | 'mois' | 'calendrier'
 function balColor(secs: number) { return secs >= 0 ? '#EF4444' : '#22C55E' }
 
 // Charge mentale
-function chargeZone(s: number)      { return s >= 13 ? 'Surcharge' : s >= 10 ? 'Tension' : s >= 8 ? 'Nominal' : 'Confort' }
-function chargeZoneColor(s: number) { return s >= 13 ? '#EF4444' : s >= 10 ? '#F97316' : s >= 8 ? '#EAB308' : '#22C55E' }
+function chargeZone(s: number)      { return s > 24 ? 'Surcharge' : s > 16 ? 'Tension' : s > 10 ? 'Nominal' : 'Confort' }
+function chargeZoneColor(s: number) { return s > 24 ? '#EF4444' : s > 16 ? '#F97316' : s > 10 ? '#EAB308' : '#22C55E' }
 
 export default function JourTab({ store, now }: Props) {
   const [view,        setView]        = useState<View>('jour')
@@ -35,6 +36,7 @@ export default function JourTab({ store, now }: Props) {
   const [editSession, setEditSession] = useState<Session | null>(null)
   const [showAdd,     setShowAdd]     = useState(false)
   const [agendaView,  setAgendaView]  = useState(false)
+  const [calMode,     setCalMode]     = useState<'blocs' | 'ressenti'>('blocs')
 
   const todayStr  = getDateStr()
   const isToday   = date === todayStr
@@ -68,8 +70,9 @@ export default function JourTab({ store, now }: Props) {
   } : null
   const chargeSessions = (activeAsSess ? [...daySessions, activeAsSess] : daySessions)
     .filter(s => s.blocId !== reposId)
-  const dayCharge        = calcDailyCharge(chargeSessions)
-  const dayChargeHasData = chargeSessions.some(s => (s.chargeNiveau ?? 0) > 0)
+  const dayFeelValue     = store.settings.dayFeel?.[date] ?? 0
+  const dayCharge        = calcDailyCharge(chargeSessions) + feelChocCerveaux(dayFeelValue)
+  const dayChargeHasData = chargeSessions.some(s => (s.chargeNiveau ?? 0) > 0) || dayFeelValue < 0
 
   const zone1Secs = daySessions.filter(s => s.zone === 'zone1').reduce((a, s) => a + s.duration, 0)
     + (isToday && store.activeTimer?.zone === 'zone1' ? activeExtra : 0)
@@ -602,6 +605,17 @@ export default function JourTab({ store, now }: Props) {
             className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-lg text-lg disabled:opacity-30">›</button>
         </div>
 
+        {/* Mode switch */}
+        <div className="bg-white rounded-2xl flex p-1 gap-1 shadow-sm">
+          {([['blocs', '🎯 Activité'], ['ressenti', '😊 Ressenti']] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setCalMode(m)}
+              className="flex-1 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={calMode === m ? { backgroundColor: '#3B82F6', color: '#fff' } : { color: '#6B7280' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Grid */}
         <div className="bg-white rounded-2xl p-3 shadow-sm">
           {/* Day headers */}
@@ -619,7 +633,10 @@ export default function JourTab({ store, now }: Props) {
               const we       = isWeekend(ds)
               const isTod    = ds === todayStr
               const isFuture = ds > todayStr
-              const dominant = getDominantBloc(ds)
+              const dominant = calMode === 'blocs' ? getDominantBloc(ds) : null
+              const feelOpt  = calMode === 'ressenti'
+                ? DAY_FEEL_OPTIONS.find(o => o.value === (store.settings.dayFeel?.[ds] ?? 0))
+                : undefined
               return (
                 <button key={day} onClick={() => openDay(ds)}
                   className="flex flex-col items-center py-1.5 rounded-xl transition-all active:scale-95"
@@ -628,7 +645,14 @@ export default function JourTab({ store, now }: Props) {
                     style={{ color: isTod ? '#3B82F6' : we ? '#9CA3AF' : isFuture ? '#D1D5DB' : '#374151' }}>
                     {day}
                   </span>
-                  {dominant ? (
+                  {calMode === 'ressenti' ? (
+                    feelOpt ? (
+                      <span className="text-sm leading-none">{feelOpt.emoji}</span>
+                    ) : (
+                      <div className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: isFuture || we ? 'transparent' : '#F3F4F6' }} />
+                    )
+                  ) : dominant ? (
                     <div className="w-2 h-2 rounded-full"
                       style={{ backgroundColor: COLORS[dominant.color].main }} />
                   ) : (
@@ -640,7 +664,7 @@ export default function JourTab({ store, now }: Props) {
             })}
           </div>
           {/* Legend */}
-          {calActiveBlocs.length > 0 && (
+          {calMode === 'blocs' && calActiveBlocs.length > 0 && (
             <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-4 gap-y-2">
               {calActiveBlocs.map(b => (
                 <div key={b.id} className="flex items-center gap-1.5">
@@ -648,6 +672,13 @@ export default function JourTab({ store, now }: Props) {
                     style={{ backgroundColor: COLORS[b.color].main }} />
                   <span className="text-xs text-gray-500">{b.icon} {b.name}</span>
                 </div>
+              ))}
+            </div>
+          )}
+          {calMode === 'ressenti' && (
+            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-x-3 gap-y-1.5">
+              {DAY_FEEL_OPTIONS.map(o => (
+                <span key={o.value} className="text-xs text-gray-500">{o.emoji} {o.label}</span>
               ))}
             </div>
           )}

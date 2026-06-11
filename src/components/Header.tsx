@@ -50,7 +50,8 @@ export default function Header({ store, now }: Props) {
         {/* Centre : Énergie + PV */}
         <div className="flex flex-col items-center pt-0.5">
           <div className="flex items-center gap-2 leading-none mb-0.5">
-            <span className="text-sm font-bold" style={{ color: energyColor }}>⚡{vitals.energy}%</span>
+            <span className={`text-sm font-bold ${vitals.energy < 30 ? 'animate-rec-blink' : ''}`}
+              style={{ color: energyColor }}>⚡{vitals.energy}%</span>
             <span className="w-px h-3.5 bg-gray-200 flex-shrink-0" />
             <span className="text-sm font-bold" style={{ color: pvColor }}>❤️{pvLabel}</span>
           </div>
