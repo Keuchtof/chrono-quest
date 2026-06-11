@@ -44,4 +44,10 @@ export interface Settings {
   joursParMoisOverrides?: Record<string, number>
   /** Afficher samedi & dimanche dans la vue semaine (défaut : false) */
   showWeekend?: boolean
+  /** Stock d'heures supplémentaires initial (en heures, peut être négatif) */
+  hsStockInitial?: number
+  /** Date de prise en compte du stock d'heures sup (YYYY-MM-DD) */
+  hsStockDate?: string
+  /** Horodatages des verres d'eau (ms epoch) — synchronisé via settings */
+  waterLog?: number[]
 }

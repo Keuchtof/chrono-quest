@@ -246,6 +246,32 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
         </div>
       </Section>
 
+      {/* Heures supplémentaires */}
+      <Section title="Heures supplémentaires">
+        <Field label="Stock initial (heures)">
+          <input type="number" step="0.25"
+            value={settings.hsStockInitial ?? ''}
+            placeholder="ex: 12.5 ou -3"
+            onChange={e => {
+              const v = e.target.value
+              updateSettings({ hsStockInitial: v === '' ? undefined : parseFloat(v) || 0 })
+            }}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </Field>
+        <Field label="Date de prise en compte">
+          <input type="date" max={new Date().toISOString().slice(0, 10)}
+            value={settings.hsStockDate ?? ''}
+            onChange={e => updateSettings({ hsStockDate: e.target.value || undefined })}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+        </Field>
+        <div className="px-4 pb-3">
+          <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
+            Le stock évolue chaque jour saisi : heures réelles − objectif du jour
+            (congés et demi-journées pris en compte). Visible dans l'onglet Santé.
+          </p>
+        </div>
+      </Section>
+
       {/* Dimension Configuration */}
       <Section title="Dimension — Configuration">
         <div className="px-4 pb-4">

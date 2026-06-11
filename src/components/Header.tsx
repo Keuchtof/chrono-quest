@@ -7,8 +7,9 @@ interface Props { store: Store; now: number }
 
 export default function Header({ store, now }: Props) {
   const today = new Date()
+  const reposId = store.blocs.find(b => b.isRest)?.id ?? 'b_repos'
   const monthSessions = getMonthSessions(store.sessions, today.getFullYear(), today.getMonth())
-  const monthTotal = monthSessions.reduce((s, sess) => s + sess.duration, 0)
+  const monthTotal = monthSessions.filter(s => s.blocId !== reposId).reduce((s, sess) => s + sess.duration, 0)
   const activeExtra = store.activeTimer ? Math.round((now - store.activeTimer.startTime) / 1000) : 0
   const totalSecs = monthTotal + activeExtra
   const objectiveSecs = getJoursParMois(store.settings, today.getFullYear(), today.getMonth()) * store.settings.heuresParJour * 3600
@@ -17,7 +18,6 @@ export default function Header({ store, now }: Props) {
   const activeBloc = store.activeTimer ? store.blocs.find(b => b.id === store.activeTimer!.blocId) : null
   const barColor = activeBloc ? COLORS[activeBloc.color].main : '#3B82F6'
 
-  const reposId = store.blocs.find(b => b.isRest)?.id ?? 'b_repos'
   const vitals  = useMemo(
     () => calcVitals(store.sessions, reposId, store.settings),
     // eslint-disable-next-line react-hooks/exhaustive-deps

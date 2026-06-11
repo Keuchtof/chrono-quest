@@ -121,29 +121,92 @@ export function getFirstDayOffset(year: number, month: number): number {
 }
 
 // ─── Balance heures ──────────────────────────────────────────────────────────
+
+/** true si le moment d'une session Repos correspond à une demi-journée */
+function isDemiJournee(moment: string): boolean {
+  return moment === 'Matin' || moment === 'Après-midi' || moment === 'Demi-journée'
+}
+
+/**
+ * Objectif d'heures (en secondes) pour un jour donné, congés pris en compte.
+ *  - Weekend → 0
+ *  - Congé journée entière (bloc Repos) → 0
+ *  - Congé demi-journée → heuresParJour − 4h (le congé crédite 4h max)
+ */
+export function getDayTargetSecs(
+  dateStr:     string,
+  daySessions: Session[],
+  reposId:     string,
+  settings:    Settings,
+): number {
+  if (isWeekend(dateStr)) return 0
+  const repos = daySessions.filter(s => s.blocId === reposId)
+  if (repos.length > 0) {
+    const allDemi = repos.every(s => isDemiJournee(s.config))
+    if (!allDemi) return 0  // au moins un congé journée entière
+    return Math.max(settings.heuresParJour - 4, 0) * 3600
+  }
+  return settings.heuresParJour * 3600
+}
+
 export function getBalance(
   sessions: Session[],
   settings: Settings,
   fromDate: string,
   toDate: string,
   activeTimer?: { startTime: number; blocId: string } | null,
-  now?: number
+  now?: number,
+  reposId = '',
 ): number {
   const today = getDateStr()
   const end = toDate > today ? today : toDate
   let balance = 0
   let cur = fromDate
   while (cur <= end) {
-    const dayTarget  = isWeekend(cur) ? 0 : settings.heuresParJour * 3600
     const daySess    = sessions.filter(s => s.date === cur)
-    let   dayActual  = daySess.reduce((a, s) => a + s.duration, 0)
-    if (cur === today && activeTimer && now) {
+    const dayTarget  = reposId
+      ? getDayTargetSecs(cur, daySess, reposId, settings)
+      : (isWeekend(cur) ? 0 : settings.heuresParJour * 3600)
+    let   dayActual  = daySess.filter(s => s.blocId !== reposId).reduce((a, s) => a + s.duration, 0)
+    if (cur === today && activeTimer && now && activeTimer.blocId !== reposId) {
       dayActual += Math.round((now - activeTimer.startTime) / 1000)
     }
     balance += dayActual - dayTarget
     cur = addDays(cur, 1)
   }
   return balance
+}
+
+/**
+ * Stock d'heures supplémentaires (en secondes) depuis la date de référence.
+ * Retourne null si non configuré (Réglages → Heures supplémentaires).
+ * Les jours de semaine sans aucune saisie sont neutres (pas de données).
+ */
+export function calcHeuresSup(
+  sessions: Session[],
+  reposId:  string,
+  settings: Settings,
+  activeTimer?: { startTime: number; blocId: string } | null,
+  now?: number,
+): number | null {
+  if (!settings.hsStockDate) return null
+  const today = getDateStr()
+  let stock = (settings.hsStockInitial ?? 0) * 3600
+  let cur   = settings.hsStockDate
+  while (cur <= today) {
+    const daySess = sessions.filter(s => s.date === cur)
+    const hasTimer = cur === today && activeTimer && now ? true : false
+    if (daySess.length > 0 || hasTimer) {
+      const target = getDayTargetSecs(cur, daySess, reposId, settings)
+      let worked = daySess.filter(s => s.blocId !== reposId).reduce((a, s) => a + s.duration, 0)
+      if (hasTimer && activeTimer!.blocId !== reposId) {
+        worked += Math.round((now! - activeTimer!.startTime) / 1000)
+      }
+      stock += worked - target
+    }
+    cur = addDays(cur, 1)
+  }
+  return stock
 }
 
 /**
@@ -255,6 +318,36 @@ function energyCostForScore(score: number): number {
   return 0
 }
 
+/**
+ * Bonus d'énergie pour journée courte (heures travaillées < objectif).
+ *  ≤ 50 % de l'objectif → +15 % | ≤ 75 % → +8 % | ≤ objectif − 1h → +4 %
+ */
+function shortDayBonus(workedSecs: number, targetSecs: number): number {
+  if (targetSecs <= 0 || workedSecs <= 0) return 0
+  if (workedSecs <= targetSecs * 0.5)  return 15
+  if (workedSecs <= targetSecs * 0.75) return 8
+  if (workedSecs <= targetSecs - 3600) return 4
+  return 0
+}
+
+/**
+ * Effet hydratation sur l'énergie pour un jour travaillé.
+ * Créneaux de 2h entre 8h et 20h (6 max) : +2 %/verre bu, −2 %/créneau manqué.
+ * Aujourd'hui : seuls les créneaux déjà écoulés comptent.
+ */
+function waterDelta(dayStr: string, waterLog: number[], todayStr: string): number {
+  const start8 = new Date(dayStr + 'T08:00:00').getTime()
+  const slots  = dayStr < todayStr
+    ? 6
+    : Math.max(0, Math.min(6, Math.floor((Date.now() - start8) / 7_200_000)))
+  if (slots === 0) return 0
+  const dayStart = new Date(dayStr + 'T00:00:00').getTime()
+  const dayEnd   = dayStart + 86_400_000
+  const drinks   = waterLog.filter(t => t >= dayStart && t < dayEnd).length
+  const counted  = Math.min(drinks, slots)
+  return counted * 2 - (slots - counted) * 2
+}
+
 export interface VitalsResult {
   pv:          number
   energy:      number    // 0–100 %
@@ -310,6 +403,12 @@ export function calcVitals(
   let streak50  = 0   // semaines consécutives > 50 cerveaux
   let streak60  = 0   // semaines consécutives > 60 cerveaux
 
+  // Hydratation : la règle ne s'applique qu'à partir du premier verre enregistré
+  const waterLog      = settings.waterLog ?? []
+  const waterStartDay = waterLog.length > 0
+    ? getDateStr(new Date(Math.min(...waterLog)))
+    : null
+
   const weekHistory: VitalsResult['weekHistory'] = []
   let curMon = firstMon
 
@@ -350,11 +449,19 @@ export function calcVitals(
           if (score >= 16)                        pv -= 2
           else if (score >= 13 && energy < 20)    pv -= 1
           if (score > 0 && score < 6)             lowChargeDay = true
+          // Journée courte : récupération partielle
+          const target = getDayTargetSecs(d, all, reposId, settings)
+          const worked = nonRepos.reduce((a, s) => a + s.duration, 0)
+          energy = Math.min(100, energy + shortDayBonus(worked, target))
         } else if (all.length > 0) {
           // Congé : uniquement sessions Repos
           reposDays++
           energy = Math.min(100, energy + 20)
         }
+      }
+      // Hydratation (jours travaillés, à partir du premier verre enregistré)
+      if (waterStartDay && d >= waterStartDay && nonRepos.length > 0) {
+        energy = Math.min(100, energy + waterDelta(d, waterLog, todayStr))
       }
       energy = Math.max(0, energy)
     }

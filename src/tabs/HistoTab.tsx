@@ -80,10 +80,12 @@ export default function HistoTab({ store }: Props) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <p className="text-sm font-semibold text-gray-900">{bloc?.name ?? 'Bloc supprimé'}</p>
-                          <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatDuration(s.duration)}</span>
+                          <span className="text-sm font-semibold text-gray-700 flex-shrink-0">
+                            {bloc?.isRest ? '🌴' : formatDuration(s.duration)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>
+                          {!bloc?.isRest && <span className="text-xs text-gray-400">{formatTime(s.startTime)}</span>}
                           {s.config  && <Chip label={s.config}  color="#3B82F6" />}
                           {s.posture && <Chip label={s.posture} color="#8B5CF6" />}
                           {s.tag     && <Chip label={s.tag}     color="#6B7280" />}

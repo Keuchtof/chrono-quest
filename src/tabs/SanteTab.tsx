@@ -4,6 +4,7 @@ import type { Session } from '../types'
 import {
   calcVitals, calcDailyCharge, chargeZone, chargeZoneColor,
   getDateStr, getDatesInRange, getWeekRange, isWeekend,
+  calcHeuresSup, formatBalance,
 } from '../utils'
 
 interface Props { store: Store; now: number }
@@ -24,6 +25,31 @@ export default function SanteTab({ store, now }: Props) {
   const pvColor     = pvRatio >= 0.7 ? '#22C55E' : pvRatio >= 0.4 ? '#F59E0B' : '#EF4444'
   const pvLabel     = vitals.pv % 1 === 0 ? String(Math.round(vitals.pv)) : vitals.pv.toFixed(1)
   const energyColor = vitals.energy >= 60 ? '#22C55E' : vitals.energy >= 30 ? '#F59E0B' : '#EF4444'
+
+  // Heures supplémentaires (null si non configuré dans Réglages)
+  const heuresSup = calcHeuresSup(store.sessions, reposId, store.settings, store.activeTimer, now)
+
+  // ── Verre d'eau ───────────────────────────────────────────────────────────
+  const waterLog    = store.settings.waterLog ?? []
+  const todayStart  = new Date(getDateStr() + 'T00:00:00').getTime()
+  const drinksToday = waterLog.filter(t => t >= todayStart).length
+  const lastDrink   = waterLog.length > 0 ? Math.max(...waterLog) : 0
+  const cooldownMs  = Math.max(0, lastDrink + 2 * 3_600_000 - now)
+  const canDrink    = cooldownMs === 0
+
+  function drinkWater() {
+    if (!canDrink) return
+    // Élague l'historique au-delà de 60 jours pour limiter la taille synchro
+    const cutoff = Date.now() - 60 * 86_400_000
+    store.updateSettings({ waterLog: [...waterLog.filter(t => t >= cutoff), Date.now()] })
+  }
+
+  function cooldownLabel(ms: number): string {
+    const totalMin = Math.ceil(ms / 60_000)
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`
+  }
 
   // ── Semaine courante ──────────────────────────────────────────────────────
   const today      = getDateStr()
@@ -85,14 +111,14 @@ export default function SanteTab({ store, now }: Props) {
           </p>
         </div>
 
-        {/* PV + Dette */}
-        <div className="flex gap-3">
+        {/* PV + Dette + Heures sup */}
+        <div className="flex gap-2">
           <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
             <div className="text-xs text-gray-400 mb-1">Points de vie</div>
-            <div className="text-xl font-bold leading-none" style={{ color: pvColor }}>
+            <div className="text-lg font-bold leading-none" style={{ color: pvColor }}>
               ❤️ {pvLabel}
             </div>
-            <div className="text-xs text-gray-400 mt-1">/ {store.settings.joursParMois}</div>
+            <div className="text-[10px] text-gray-400 mt-1">/ {store.settings.joursParMois}</div>
           </div>
           <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
             <div className="text-xs text-gray-400 mb-1">Dette</div>
@@ -103,7 +129,42 @@ export default function SanteTab({ store, now }: Props) {
               <div className="text-[10px] text-gray-400 mt-1">Gains PV ×0,5</div>
             )}
           </div>
+          <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
+            <div className="text-xs text-gray-400 mb-1">Heures sup</div>
+            {heuresSup !== null ? (
+              <div className="text-lg font-bold leading-none"
+                style={{ color: heuresSup >= 0 ? '#3B82F6' : '#EF4444' }}>
+                {formatBalance(heuresSup)}
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-400 leading-tight mt-1">
+                À configurer dans Réglages
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ── Hydratation ──────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-400 tracking-wider">HYDRATATION</p>
+          <span className="text-xs text-gray-400">
+            Aujourd'hui : <span className="font-bold text-blue-500">💧 × {drinksToday}</span>
+          </span>
+        </div>
+        <button onClick={drinkWater} disabled={!canDrink}
+          className="w-full py-3.5 rounded-xl text-sm font-semibold transition-all active:scale-[0.98]"
+          style={canDrink
+            ? { backgroundColor: '#3B82F6', color: '#fff' }
+            : { backgroundColor: '#F3F4F6', color: '#9CA3AF' }}>
+          {canDrink
+            ? '💧 J\'ai bu un verre d\'eau'
+            : `⏳ Prochain verre dans ${cooldownLabel(cooldownMs)}`}
+        </button>
+        <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+          +2 % d'énergie par verre, −2 % par créneau de 2h manqué (8h–20h, jours travaillés uniquement).
+        </p>
       </div>
 
       {/* ── Semaine en cours ─────────────────────────────────────────────── */}

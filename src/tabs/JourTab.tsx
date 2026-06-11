@@ -38,6 +38,7 @@ export default function JourTab({ store, now }: Props) {
 
   const todayStr  = getDateStr()
   const isToday   = date === todayStr
+  const reposId   = store.blocs.find(b => b.isRest)?.id ?? 'b_repos'
 
   function openDay(d: string) { setDate(d); setView('jour'); setActiveBloc(null) }
   function openWeek(wMon: string) { setDate(wMon); setView('semaine') }
@@ -65,9 +66,10 @@ export default function JourTab({ store, now }: Props) {
     duration: activeExtra, tag: '', config: '', posture: '', zone: '',
     chargeNiveau: store.activeTimer.chargeNiveau,
   } : null
-  const dayCharge      = calcDailyCharge(activeAsSess ? [...daySessions, activeAsSess] : daySessions)
-  const dayChargeHasData = (activeAsSess ? [...daySessions, activeAsSess] : daySessions)
-    .some(s => (s.chargeNiveau ?? 0) > 0)
+  const chargeSessions = (activeAsSess ? [...daySessions, activeAsSess] : daySessions)
+    .filter(s => s.blocId !== reposId)
+  const dayCharge        = calcDailyCharge(chargeSessions)
+  const dayChargeHasData = chargeSessions.some(s => (s.chargeNiveau ?? 0) > 0)
 
   const zone1Secs = daySessions.filter(s => s.zone === 'zone1').reduce((a, s) => a + s.duration, 0)
     + (isToday && store.activeTimer?.zone === 'zone1' ? activeExtra : 0)
@@ -76,7 +78,7 @@ export default function JourTab({ store, now }: Props) {
 
   const dailyBalance = getBalance(
     store.sessions, store.settings, date, date,
-    isToday ? store.activeTimer : null, isToday ? now : undefined,
+    isToday ? store.activeTimer : null, isToday ? now : undefined, reposId,
   )
 
   const configStats = store.settings.configurations
@@ -115,7 +117,7 @@ export default function JourTab({ store, now }: Props) {
 
   const weekMaxTotal = Math.max(...weekDayData.map(d => d.total), 1)
   const weekTotal    = weekDayData.reduce((a, d) => a + d.total, 0)
-  const weekBalance  = getBalance(store.sessions, store.settings, weekMonday, weekSunday, store.activeTimer, now)
+  const weekBalance  = getBalance(store.sessions, store.settings, weekMonday, weekSunday, store.activeTimer, now, reposId)
   const weekIsCurrentWeek = allWeekDates.includes(todayStr)
 
   // ─── Month view data ──────────────────────────────────────────────────────
@@ -148,13 +150,13 @@ export default function JourTab({ store, now }: Props) {
     const balance = getBalance(
       store.sessions, store.settings,
       days[0], days[days.length - 1],
-      store.activeTimer, now,
+      store.activeTimer, now, reposId,
     )
     return { wMon, days, total, z1, z2, balance, weekNum: idx + 1 }
   })
 
   const monthTotal2   = monthWeekData.reduce((a, w) => a + w.total, 0)
-  const monthBalance2 = getBalance(store.sessions, store.settings, monthStart, monthEnd, store.activeTimer, now)
+  const monthBalance2 = getBalance(store.sessions, store.settings, monthStart, monthEnd, store.activeTimer, now, reposId)
   const monthMaxTotal = Math.max(...monthWeekData.map(w => w.total), 1)
   const monthObjSecs  = getJoursParMois(store.settings, calYear, calMonth) * store.settings.heuresParJour * 3600
 
@@ -436,7 +438,7 @@ export default function JourTab({ store, now }: Props) {
             const sess     = getDaySessions(store.sessions, d)
             const dIsToday = d === todayStr
             const dailyBal = getBalance(store.sessions, store.settings, d, d,
-              dIsToday ? store.activeTimer : null, dIsToday ? now : undefined)
+              dIsToday ? store.activeTimer : null, dIsToday ? now : undefined, reposId)
             return (
               <button key={d} onClick={() => openDay(d)}
                 className="w-full bg-white rounded-2xl px-4 py-3 shadow-sm text-left flex items-center gap-3 active:scale-[0.99] transition-transform">
