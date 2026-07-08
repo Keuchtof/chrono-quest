@@ -52,4 +52,6 @@ export interface Settings {
   waterLog?: number[]
   /** Ressenti par jour : clé = 'YYYY-MM-DD', valeur = −3..−1 (choc) ou 1..3 (satisfaction) */
   dayFeel?: Record<string, number>
+  /** Base de tags réutilisables (construite par l'usage, gérable dans Réglages) */
+  tags?: string[]
 }

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { Store } from '../store'
 import { COLORS, ZONE1_COLOR, ZONE2_COLOR } from '../constants'
-import { formatTimer, secondsToDisplay, getMonthSessions } from '../utils'
+import { formatTimer } from '../utils'
 import AddSessionModal from '../components/AddSessionModal'
 import ChargeSelector from '../components/ChargeSelector'
+import MonthRanking from '../components/MonthRanking'
+import TagPicker from '../components/TagPicker'
 
 interface Props { store: Store; now: number }
 
@@ -11,20 +13,6 @@ export default function SuiviTab({ store, now }: Props) {
   const [showAdd, setShowAdd] = useState(false)
 
   const today = new Date()
-  const monthSessions = getMonthSessions(store.sessions, today.getFullYear(), today.getMonth())
-
-  function getBlocMonthSeconds(blocId: string) {
-    const base = monthSessions.filter(s => s.blocId === blocId).reduce((a, s) => a + s.duration, 0)
-    const extra = store.activeTimer?.blocId === blocId
-      ? Math.round((now - store.activeTimer.startTime) / 1000) : 0
-    return base + extra
-  }
-
-  const ranked = [...store.blocs]
-    .map(b => ({ bloc: b, secs: getBlocMonthSeconds(b.id) }))
-    .sort((a, b) => b.secs - a.secs)
-
-  const rankColors = ['#EAB308', '#6B7280', '#B45309', '#3B82F6', '#8B5CF6']
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-3">
@@ -160,9 +148,11 @@ export default function SuiviTab({ store, now }: Props) {
                     </div>
                   </div>
                   {/* Tag */}
-                  <input type="text" value={t!.tag}
-                    onChange={e => store.setTimerMeta({ tag: e.target.value })}
-                    placeholder="Tag libre (optionnel)..."
+                  <TagPicker
+                    value={t!.tag}
+                    onChange={v => store.setTimerMeta({ tag: v })}
+                    tags={store.settings.tags ?? []}
+                    onAddTag={store.addTag}
                     className="w-full text-xs px-3 py-1.5 rounded-xl border border-gray-200 bg-white/60 focus:outline-none focus:border-blue-300 placeholder:text-gray-400"
                   />
                 </div>
@@ -182,29 +172,11 @@ export default function SuiviTab({ store, now }: Props) {
 
       {/* Classement du mois */}
       <div className="pt-2">
-        <p className="text-xs font-semibold text-gray-400 tracking-wider mb-3">CLASSEMENT DU MOIS</p>
-        <div className="space-y-2">
-          {ranked.map(({ bloc, secs }, i) => {
-            const objSecs = bloc.objectifJours * store.settings.heuresParJour * 3600
-            const progress = objSecs > 0 ? Math.min(secs / objSecs, 1) : 0
-            const color = COLORS[bloc.color]
-            return (
-              <div key={bloc.id} className="bg-white rounded-xl px-3 py-2.5 shadow-sm">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: rankColors[i] ?? '#9CA3AF' }}>{i + 1}</span>
-                  <span className="text-base">{bloc.icon}</span>
-                  <span className="flex-1 text-sm font-medium text-gray-800">{bloc.name}</span>
-                  <span className="text-xs text-gray-500">{secondsToDisplay(secs)} / {secondsToDisplay(objSecs)}</span>
-                </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${progress * 100}%`, backgroundColor: color.main }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <MonthRanking
+          blocs={store.blocs} sessions={store.sessions} settings={store.settings}
+          year={today.getFullYear()} month={today.getMonth()}
+          activeTimer={store.activeTimer} now={now}
+        />
       </div>
 
       {/* Quick-start FABs */}
@@ -219,7 +191,7 @@ export default function SuiviTab({ store, now }: Props) {
                 title="Démarrer : Gestion de la boîte mail"
                 onClick={() => {
                   store.startTimer(gestionBloc.id)
-                  store.setTimerMeta({ config: 'Solo', posture: 'Pilote', zone: 'zone2', tag: 'Gestion de la boîte mail' })
+                  store.setTimerMeta({ config: 'Solo', posture: 'Pilote', zone: 'zone2', tag: 'Gestion de la boîte mail', chargeNiveau: 1 })
                 }}
                 className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-20 active:scale-95 transition-transform"
                 style={{ position: 'fixed', bottom: '144px', right: fabRight, backgroundColor: '#7C3AED' }}>
@@ -250,7 +222,7 @@ export default function SuiviTab({ store, now }: Props) {
       </button>
 
       <AddSessionModal open={showAdd} blocs={store.blocs} settings={store.settings}
-        onAdd={store.addSession} onClose={() => setShowAdd(false)} />
+        onAdd={store.addSession} onAddTag={store.addTag} onClose={() => setShowAdd(false)} />
     </div>
   )
 }

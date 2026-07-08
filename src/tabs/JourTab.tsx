@@ -13,6 +13,7 @@ import DonutChart from '../components/DonutChart'
 import Drawer from '../components/Drawer'
 import EditSessionModal from '../components/EditSessionModal'
 import AddSessionModal from '../components/AddSessionModal'
+import MonthRanking from '../components/MonthRanking'
 import { ChargeDisplay } from '../components/ChargeSelector'
 import type { Session, Bloc, ActiveTimer } from '../types'
 
@@ -604,6 +605,13 @@ export default function JourTab({ store, now }: Props) {
           })()}
         </div>
 
+        {/* Classement du mois affiché (mois passés consultables) */}
+        <MonthRanking
+          blocs={store.blocs} sessions={store.sessions} settings={store.settings}
+          year={calYear} month={calMonth}
+          activeTimer={store.activeTimer} now={now}
+        />
+
         {/* Week list */}
         <div className="space-y-2">
           {monthWeekData.filter(w => w.total > 0).map(({ wMon, days, total, balance, weekNum }) => (
@@ -729,10 +737,12 @@ export default function JourTab({ store, now }: Props) {
       <EditSessionModal open={!!editSession} session={editSession} blocs={store.blocs}
         settings={store.settings}
         onSave={patch => editSession && store.updateSession(editSession.id, patch)}
+        onAddTag={store.addTag}
         onClose={() => setEditSession(null)} />
 
       <AddSessionModal open={showAdd} blocs={store.blocs} settings={store.settings}
-        defaultDate={date} onAdd={store.addSession} onClose={() => setShowAdd(false)} />
+        defaultDate={date} onAdd={store.addSession} onAddTag={store.addTag}
+        onClose={() => setShowAdd(false)} />
     </div>
   )
 }

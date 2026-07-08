@@ -124,6 +124,7 @@ export default function HistoTab({ store }: Props) {
         blocs={store.blocs}
         settings={store.settings}
         onSave={patch => editSession && store.updateSession(editSession.id, patch)}
+        onAddTag={store.addTag}
         onClose={() => setEditSession(null)}
       />
     </div>

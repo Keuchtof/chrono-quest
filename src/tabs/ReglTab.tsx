@@ -226,6 +226,21 @@ export default function ReglTab({ store, username, onLogout, onSyncActivated }: 
         </div>
       </Section>
 
+      {/* Base de tags */}
+      <Section title="Tags">
+        <div className="px-4 pb-4">
+          <DimEditor values={settings.tags ?? []}
+            onChange={v => updateSettings({ tags: v })} color="#6B7280" />
+        </div>
+        <div className="px-4 pb-3">
+          <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
+            Ces tags sont proposés dans le champ « Tag libre ». La base s'enrichit aussi
+            depuis le champ lui-même (« + Enregistrer »). Les anciens tags des sessions
+            existantes ne sont pas importés — la base se construit par l'usage.
+          </p>
+        </div>
+      </Section>
+
       {/* Zones */}
       <Section title="Zones géographiques">
         <Field label="Nom de la zone 1">

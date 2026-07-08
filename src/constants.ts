@@ -49,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   zoneName1:      'Alpes',
   zoneName2:      'Territoire',
   showWeekend:    false,
+  tags:           ['Gestion de la boîte mail', 'Pôle Offre Communauté'],
 }
 
 export const EMOJI_OPTIONS = ['🏛️','🚀','🎉','🤝','⚙️','📋','👥','💼','📊','💡','🔧','📞','✉️','🗂️','💰','🎯','📝','🔍','📅','🌱']

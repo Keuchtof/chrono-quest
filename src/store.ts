@@ -111,6 +111,17 @@ export function useStore() {
     setSettings(prev => ({ ...prev, ...patch }))
   }, [])
 
+  /** Ajoute un tag à la base réutilisable (dédupliqué). */
+  const addTag = useCallback((tag: string) => {
+    const t = tag.trim()
+    if (!t) return
+    setSettings(prev => {
+      const tags = prev.tags ?? []
+      if (tags.includes(t)) return prev
+      return { ...prev, tags: [...tags, t] }
+    })
+  }, [])
+
   /**
    * Bulk import from CSV.
    * merge  → add new sessions (dedup by date+startTime), update blocs
@@ -150,7 +161,7 @@ export function useStore() {
     blocs, sessions, activeTimer, settings,
     startTimer, stopTimer, setTimerMeta,
     addSession, updateSession, deleteSession,
-    addBloc, updateBloc, deleteBloc, updateSettings, importData,
+    addBloc, updateBloc, deleteBloc, updateSettings, addTag, importData,
   }
 }
 

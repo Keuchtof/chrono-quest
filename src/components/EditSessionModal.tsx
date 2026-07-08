@@ -3,6 +3,7 @@ import Modal from './Modal'
 import type { Session, Bloc, Settings } from '../types'
 import { getDateStr } from '../utils'
 import ChargeSelector from './ChargeSelector'
+import TagPicker from './TagPicker'
 import { REPOS_MOTIFS, REPOS_MOMENTS } from '../constants'
 
 interface Props {
@@ -11,10 +12,11 @@ interface Props {
   blocs: Bloc[]
   settings: Settings
   onSave: (patch: Partial<Session>) => void
+  onAddTag: (t: string) => void
   onClose: () => void
 }
 
-export default function EditSessionModal({ open, session, blocs, settings, onSave, onClose }: Props) {
+export default function EditSessionModal({ open, session, blocs, settings, onSave, onAddTag, onClose }: Props) {
   const [blocId,       setBlocId]       = useState('')
   const [tag,          setTag]          = useState('')
   const [config,       setConfig]       = useState('')
@@ -139,9 +141,9 @@ export default function EditSessionModal({ open, session, blocs, settings, onSav
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tag libre</label>
-              <input type="text" value={tag} onChange={e => setTag(e.target.value)}
-                placeholder="Ex : Séminaire Alpes..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:border-blue-400" />
+              <TagPicker value={tag} onChange={setTag}
+                tags={settings.tags ?? []} onAddTag={onAddTag}
+                placeholder="Ex : Séminaire Alpes..." />
             </div>
           </>
         )}
