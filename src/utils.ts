@@ -128,10 +128,20 @@ function isDemiJournee(moment: string): boolean {
 }
 
 /**
+ * true si la session Repos est une Récupération.
+ * La récup ne réduit PAS l'objectif : elle puise dans les heures supplémentaires
+ * (l'objectif reste normal, le déficit du jour décompte le stock).
+ */
+function isRecuperation(s: Session): boolean {
+  return s.tag === 'Récupération'
+}
+
+/**
  * Objectif d'heures (en secondes) pour un jour donné, congés pris en compte.
  *  - Weekend → 0
- *  - Congé journée entière (bloc Repos) → 0
- *  - Congé demi-journée → heuresParJour − 4h (le congé crédite 4h max)
+ *  - Congé/RTT/Férié journée entière → 0
+ *  - Congé/RTT/Férié demi-journée → heuresParJour − 4h (le congé crédite 4h max)
+ *  - Récupération → objectif normal conservé (déduit des heures sup, pas de l'objectif)
  */
 export function getDayTargetSecs(
   dateStr:     string,
@@ -140,9 +150,10 @@ export function getDayTargetSecs(
   settings:    Settings,
 ): number {
   if (isWeekend(dateStr)) return 0
-  const repos = daySessions.filter(s => s.blocId === reposId)
-  if (repos.length > 0) {
-    const allDemi = repos.every(s => isDemiJournee(s.config))
+  // Seuls les congés (hors récup) réduisent l'objectif du jour
+  const conges = daySessions.filter(s => s.blocId === reposId && !isRecuperation(s))
+  if (conges.length > 0) {
+    const allDemi = conges.every(s => isDemiJournee(s.config))
     if (!allDemi) return 0  // au moins un congé journée entière
     return Math.max(settings.heuresParJour - 4, 0) * 3600
   }
@@ -224,10 +235,11 @@ export function getMonthObjectiveSecs(
   const ouvres = getWorkingDaysInMonth(year, month)
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`
 
-  // Crédit congés : un jour de semaine avec du Repos réduit l'objectif
+  // Crédit congés : un jour de semaine avec un congé (hors récup) réduit l'objectif.
+  // La Récupération est exclue : elle se déduit des heures sup, pas de l'objectif.
   const reposByDay = new Map<string, Session[]>()
   for (const s of sessions) {
-    if (s.blocId !== reposId || !s.date.startsWith(prefix) || isWeekend(s.date)) continue
+    if (s.blocId !== reposId || isRecuperation(s) || !s.date.startsWith(prefix) || isWeekend(s.date)) continue
     if (!reposByDay.has(s.date)) reposByDay.set(s.date, [])
     reposByDay.get(s.date)!.push(s)
   }
