@@ -52,6 +52,10 @@ export interface Settings {
   waterLog?: number[]
   /** Ressenti par jour : clé = 'YYYY-MM-DD', valeur = −3..−1 (choc) ou 1..3 (satisfaction) */
   dayFeel?: Record<string, number>
+  /** Prise de ritaline par jour : clé = 'YYYY-MM-DD' → true */
+  ritaline?: Record<string, boolean>
+  /** Présence d'Ulki (chien) par jour : clé = 'YYYY-MM-DD' → true */
+  ulki?: Record<string, boolean>
   /** Base de tags réutilisables (construite par l'usage, gérable dans Réglages) */
   tags?: string[]
 }

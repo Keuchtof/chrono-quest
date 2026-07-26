@@ -39,3 +39,22 @@ body {
   animation: float-soft 3s ease-in-out infinite;
   display: inline-block;
 }
+
+/* Bandeau d'alerte type breaking news — texte défilant en boucle */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: marquee 18s linear infinite;
+}
+.marquee-pulse {
+  animation: alert-pulse 1.1s ease-in-out infinite;
+}
+@keyframes alert-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.72; }
+}

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import type { Store } from '../store'
-import { formatMonthYear, getMonthSessions, secondsToDisplay, calcVitals, getMonthObjectiveSecs, pvColor } from '../utils'
+import { formatMonthYear, getMonthSessions, secondsToDisplay, calcVitals, getMonthObjectiveSecs, pvColor, calcRitalineAlert } from '../utils'
 import { COLORS } from '../constants'
+import AlertBanner from './AlertBanner'
 
 interface Props { store: Store; now: number }
 
@@ -27,6 +28,7 @@ export default function Header({ store, now }: Props) {
   const pvCol       = pvColor(vitals.pv)
   const pvLabel     = vitals.pv % 1 === 0 ? String(Math.round(vitals.pv)) : vitals.pv.toFixed(1)
   const energyColor = vitals.energy >= 60 ? '#22C55E' : vitals.energy >= 30 ? '#F59E0B' : '#EF4444'
+  const alert       = calcRitalineAlert(store.settings)
 
   return (
     <header className="bg-white px-4 pt-4 pb-3 shadow-sm flex-shrink-0">
@@ -68,6 +70,8 @@ export default function Header({ store, now }: Props) {
         <div className="h-full rounded-full transition-all duration-500"
           style={{ width: `${progress * 100}%`, backgroundColor: barColor }} />
       </div>
+
+      {alert && <AlertBanner alert={alert} />}
     </header>
   )
 }

@@ -373,6 +373,67 @@ export function feelChocCerveaux(feel: number): number {
   return 0
 }
 
+/** Convertit un ressenti (−3..3, 0 = non noté) en score d'humeur 0–5. null si non noté. */
+export function feelToMoodScore(feel: number): number | null {
+  switch (feel) {
+    case -3: return 0
+    case -2: return 1
+    case -1: return 2
+    case  1: return 3
+    case  2: return 4
+    case  3: return 5
+    default: return null
+  }
+}
+
+export interface RitalineAlert {
+  level: 1 | 2 | 3
+  text:  string
+}
+
+/**
+ * Alerte ritaline basée sur la chaîne de jours consécutifs en ressenti négatif,
+ * se terminant au dernier jour noté.
+ *  - Le bandeau ne s'affiche que si le dernier jour noté est négatif.
+ *  - Un jour calendaire sans ressenti interrompt la chaîne.
+ *  - Niveau 1 (modérée) : ≥ 1 jour négatif.
+ *  - Niveau 2 (forte)   : 2 jours négatifs consécutifs ET ritaline prise sur la période.
+ *  - Niveau 3 (absolue) : 3 jours négatifs consécutifs ou plus.
+ */
+export function calcRitalineAlert(settings: Settings): RitalineAlert | null {
+  const dayFeel  = settings.dayFeel ?? {}
+  const ritaline = settings.ritaline ?? {}
+  const noted    = Object.keys(dayFeel).filter(d => (dayFeel[d] ?? 0) !== 0).sort()
+  if (noted.length === 0) return null
+
+  const last = noted[noted.length - 1]
+  if ((dayFeel[last] ?? 0) >= 0) return null   // dernier jour noté non négatif → pas d'alerte
+
+  // Longueur de la chaîne négative se terminant à `last` (jours calendaires)
+  let streak = 0
+  let cur = last
+  while ((dayFeel[cur] ?? 0) < 0) {
+    streak++
+    cur = addDays(cur, -1)
+  }
+
+  // Ritaline prise au moins un jour de la chaîne ?
+  let ritalineInStreak = false
+  let d = last
+  for (let i = 0; i < streak; i++) {
+    if (ritaline[d]) { ritalineInStreak = true; break }
+    d = addDays(d, -1)
+  }
+
+  if (streak >= 3) {
+    return { level: 3, text: 'ALERTE ABSOLUE — STOPPER IMMÉDIATEMENT LA RITALINE' }
+  }
+  if (streak === 2 && ritalineInStreak) {
+    return { level: 2, text: 'ALERTE FORTE — ARRÊTER LA RITALINE' }
+  }
+  return { level: 1, text: 'ALERTE MODÉRÉE — ÉVITER LA RITALINE' }
+}
+
 /** Énergie restaurée en fin de journée par une journée satisfaisante */
 function feelEnergyBonus(feel: number): number {
   if (feel === 3) return 10
@@ -422,6 +483,13 @@ export interface VitalsResult {
     energyEnd:  number
     debtLevel:  number
   }[]
+  /** Trace journalière (énergie & PV en fin de journée) pour les statistiques */
+  dayHistory: {
+    date:    string
+    energy:  number
+    pv:      number
+    worked:  boolean
+  }[]
 }
 
 /**
@@ -452,9 +520,11 @@ export function calcVitals(
   }
 
   const empty: VitalsResult = {
-    pv: PV_BASE, energy: 100, debtLevel: 0, weekHistory: []
+    pv: PV_BASE, energy: 100, debtLevel: 0, weekHistory: [], dayHistory: []
   }
   if (byDate.size === 0) return empty
+
+  const dayHistory: VitalsResult['dayHistory'] = []
 
   const todayStr   = getDateStr()
   const allDates   = [...byDate.keys()].sort()
@@ -534,6 +604,14 @@ export function calcVitals(
         energy = Math.min(100, energy + waterDelta(d, waterLog, todayStr))
       }
       energy = Math.max(0, energy)
+
+      // Trace journalière (uniquement les jours avec des données)
+      if (all.length > 0) {
+        dayHistory.push({
+          date: d, energy: Math.round(energy), pv: Math.round(pv * 10) / 10,
+          worked: nonRepos.length > 0,
+        })
+      }
     }
 
     // ── Mise à jour de la dette ────────────────────────────────────────────
@@ -595,5 +673,6 @@ export function calcVitals(
     energy:      Math.round(energy),
     debtLevel,
     weekHistory,
+    dayHistory,
   }
 }

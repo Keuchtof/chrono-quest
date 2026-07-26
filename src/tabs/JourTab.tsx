@@ -103,6 +103,22 @@ export default function JourTab({ store, now }: Props) {
     store.updateSettings({ dayFeel })
   }
 
+  const ritalineOn = store.settings.ritaline?.[date] ?? false
+  const ulkiOn     = store.settings.ulki?.[date] ?? false
+
+  function toggleRitaline() {
+    const ritaline = { ...(store.settings.ritaline ?? {}) }
+    if (ritaline[date]) delete ritaline[date]
+    else ritaline[date] = true
+    store.updateSettings({ ritaline })
+  }
+  function toggleUlki() {
+    const ulki = { ...(store.settings.ulki ?? {}) }
+    if (ulki[date]) delete ulki[date]
+    else ulki[date] = true
+    store.updateSettings({ ulki })
+  }
+
   const donutSegments = blocStats.map(b => ({
     id: b.bloc.id, value: b.totalSecs, color: COLORS[b.bloc.color].main,
   }))
@@ -307,6 +323,26 @@ export default function JourTab({ store, now }: Props) {
                 <span className="text-[8px] text-gray-400 mt-1 leading-none">{opt.effect}</span>
               </button>
             ))}
+          </div>
+
+          {/* Marqueurs du jour : ritaline & Ulki */}
+          <div className="flex gap-2 mt-3">
+            <button onClick={toggleRitaline}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-sm font-medium transition-all active:scale-95"
+              style={ritalineOn
+                ? { backgroundColor: '#EEF2FF', borderColor: '#6366F1', borderWidth: 2, color: '#4338CA' }
+                : { backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', color: '#9CA3AF' }}>
+              <span className="text-base">💊</span>
+              Ritaline {ritalineOn ? '✓' : ''}
+            </button>
+            <button onClick={toggleUlki}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-sm font-medium transition-all active:scale-95"
+              style={ulkiOn
+                ? { backgroundColor: '#FFF7ED', borderColor: '#F97316', borderWidth: 2, color: '#C2410C' }
+                : { backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', color: '#9CA3AF' }}>
+              <span className="text-base">🐕</span>
+              Ulki {ulkiOn ? '✓' : ''}
+            </button>
           </div>
         </div>
 

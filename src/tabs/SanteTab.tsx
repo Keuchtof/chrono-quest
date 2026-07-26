@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import type { Store } from '../store'
 import type { Session } from '../types'
 import { DAY_FEEL_OPTIONS } from '../constants'
+import StatsModal from '../components/StatsModal'
 import {
   calcVitals, calcDailyCharge, chargeZone, chargeZoneColor,
   getDateStr, getDatesInRange, getWeekRange, isWeekend,
@@ -15,6 +16,7 @@ const DEBT_COLORS = ['#22C55E', '#F59E0B', '#F97316', '#EF4444']
 
 export default function SanteTab({ store, now }: Props) {
   const reposId = store.blocs.find(b => b.isRest)?.id ?? 'b_repos'
+  const [showStats, setShowStats] = useState(false)
 
   const vitals = useMemo(
     () => calcVitals(store.sessions, reposId, store.settings),
@@ -93,6 +95,14 @@ export default function SanteTab({ store, now }: Props) {
 
   return (
     <div className="px-4 pt-4 pb-24 space-y-4">
+
+      {/* Bouton statistiques */}
+      <button onClick={() => setShowStats(true)}
+        className="w-full py-2.5 rounded-2xl bg-white shadow-sm text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform">
+        📊 Statistiques
+      </button>
+
+      <StatsModal open={showStats} store={store} onClose={() => setShowStats(false)} />
 
       {/* ── État actuel ─────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm p-4 space-y-4">
@@ -295,7 +305,25 @@ function GuideCard() {
           </p>
           <p>
             😵 <strong>Ressenti</strong> — Un choc ajoute 2/4/8🧠 au score du jour ;
-            une journée satisfaisante restaure 3/6/10 % d'énergie.
+            une journée satisfaisante restaure 3/6/10 % d'énergie. Se note dans l'onglet Jour
+            (jours passés inclus), avec les marqueurs 💊 ritaline et 🐕 Ulki.
+          </p>
+          <p>
+            💧 <strong>Hydratation</strong> — +2 % d'énergie par verre bu,
+            −1 % par créneau de 2h manqué (8h–20h, jours travaillés). Le bouton a un délai de 2h.
+          </p>
+          <p>
+            🚨 <strong>Alerte ritaline</strong> — Un bandeau rouge s'affiche en haut de tous les écrans
+            selon la chaîne de jours en ressenti négatif :
+            <br />• 1 jour négatif → <strong>modérée</strong> (« éviter la ritaline »)
+            <br />• 2 jours négatifs d'affilée + ritaline prise → <strong>forte</strong> (« arrêter »)
+            <br />• 3 jours négatifs ou plus → <strong>absolue</strong> (« stopper immédiatement »)
+            <br />Le bandeau disparaît dès qu'un jour plus récent est noté non-négatif.
+          </p>
+          <p>
+            📊 <strong>Statistiques</strong> — Bouton en haut : humeur moyenne du mois,
+            comparaison avec/sans ritaline, avec/sans Ulki, travaillé/repos, et l'évolution
+            énergie & cœur par jour/semaine/mois. Les jours sans humeur ne sont pas comptés.
           </p>
           <div className="bg-gray-50 rounded-xl px-3 py-2 mt-1">
             <p className="font-semibold text-gray-700 mb-1">Zones journalières</p>
