@@ -58,4 +58,21 @@ export interface Settings {
   ulki?: Record<string, boolean>
   /** Base de tags réutilisables (construite par l'usage, gérable dans Réglages) */
   tags?: string[]
+
+  // ── Gestion ritaline ──────────────────────────────────────────────────────
+  /** Date de l'ordonnance initiale annuelle (spécialiste), valable 1 an */
+  ritalineOrdonnanceInitiale?: string
+  /** Stock de cachets constaté à une date donnée (point de départ des calculs) */
+  ritalineStockInitial?: number
+  ritalineStockDate?: string
+  /** Historique des cycles ordonnance → délivrance, du plus ancien au plus récent */
+  ritalineCycles?: RitalineCycle[]
+}
+
+/** Un cycle de traitement : ordonnance, retrait en pharmacie, RDV suivant prévu */
+export interface RitalineCycle {
+  id:           string
+  ordonnance:   string   // YYYY-MM-DD
+  delivrance?:  string   // YYYY-MM-DD — retrait effectif en pharmacie
+  prochainRdv?: string   // RDV pris pour le cycle suivant
 }

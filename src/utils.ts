@@ -1,4 +1,4 @@
-import type { Session, Settings } from './types'
+import type { Session, Settings, RitalineCycle } from './types'
 
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
@@ -49,6 +49,105 @@ export function addDays(dateStr: string, n: number): string {
 export function isWeekend(dateStr: string): boolean {
   const d = new Date(dateStr + 'T12:00:00').getDay()
   return d === 0 || d === 6
+}
+
+/** Nombre de jours entiers de `from` à `to` (négatif si `to` est antérieur) */
+export function daysBetween(from: string, to: string): number {
+  const a = new Date(from + 'T12:00:00').getTime()
+  const b = new Date(to   + 'T12:00:00').getTime()
+  return Math.round((b - a) / 86_400_000)
+}
+
+export function addMonths(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setMonth(d.getMonth() + n)
+  return getDateStr(d)
+}
+
+/** Écart en mois pleins + jours restants entre deux dates */
+export function monthsAndDays(from: string, to: string): { months: number; days: number } {
+  if (to <= from) return { months: 0, days: 0 }
+  let months = 0
+  let cur = from
+  while (addMonths(cur, 1) <= to) { cur = addMonths(cur, 1); months++ }
+  return { months, days: daysBetween(cur, to) }
+}
+
+// ─── Jours fériés français ───────────────────────────────────────────────────
+
+/** Dimanche de Pâques (algorithme de Meeus/Jones/Butcher) */
+function easterSunday(year: number): Date {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const d = Math.floor(b / 4)
+  const e = b % 4
+  const f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4)
+  const k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31)  // 3 = mars, 4 = avril
+  const day   = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day)
+}
+
+const holidayCache = new Map<number, Set<string>>()
+
+/** Jours fériés français (métropole) pour une année */
+export function frenchHolidays(year: number): Set<string> {
+  const cached = holidayCache.get(year)
+  if (cached) return cached
+  const easter = easterSunday(year)
+  const offset = (n: number) => {
+    const d = new Date(easter)
+    d.setDate(d.getDate() + n)
+    return getDateStr(d)
+  }
+  const set = new Set([
+    `${year}-01-01`,  // Jour de l'an
+    `${year}-05-01`,  // Fête du travail
+    `${year}-05-08`,  // Victoire 1945
+    `${year}-07-14`,  // Fête nationale
+    `${year}-08-15`,  // Assomption
+    `${year}-11-01`,  // Toussaint
+    `${year}-11-11`,  // Armistice
+    `${year}-12-25`,  // Noël
+    offset(1),        // Lundi de Pâques
+    offset(39),       // Ascension
+    offset(50),       // Lundi de Pentecôte
+  ])
+  holidayCache.set(year, set)
+  return set
+}
+
+export function isHoliday(dateStr: string): boolean {
+  return frenchHolidays(parseInt(dateStr.slice(0, 4))).has(dateStr)
+}
+
+/** Pharmacie considérée fermée : dimanche ou jour férié */
+export function isPharmacyClosed(dateStr: string): boolean {
+  return new Date(dateStr + 'T12:00:00').getDay() === 0 || isHoliday(dateStr)
+}
+
+/**
+ * Jour de retrait « sûr » : la pharmacie est ouverte ET le lendemain aussi,
+ * pour pouvoir repasser en cas de rupture de stock.
+ */
+export function isSafePickupDay(dateStr: string): boolean {
+  return !isPharmacyClosed(dateStr) && !isPharmacyClosed(addDays(dateStr, 1))
+}
+
+/** Premier jour de retrait sûr à partir de `from` (inclus) */
+export function nextSafePickupDay(from: string): string {
+  let d = from
+  for (let i = 0; i < 14; i++) {
+    if (isSafePickupDay(d)) return d
+    d = addDays(d, 1)
+  }
+  return from
 }
 
 const SHORT_DAYS   = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.']
@@ -676,3 +775,166 @@ export function calcVitals(
     dayHistory,
   }
 }
+
+// ─── Gestion ritaline ────────────────────────────────────────────────────────
+
+/** Durée d'un cycle de traitement (jours) */
+export const RITALINE_DUREE = 28
+/** Délai pour retirer l'ordonnance sans perte de gélules (jours) */
+export const RITALINE_DELAI_RETRAIT = 3
+
+/**
+ * Gélules délivrées pour un cycle : 28 pleines si le retrait a lieu dans les
+ * 3 jours suivant l'ordonnance, puis −1 par jour de retard supplémentaire.
+ */
+export function ritalineGelules(cycle: RitalineCycle): number | null {
+  if (!cycle.delivrance) return null
+  const retard = daysBetween(cycle.ordonnance, cycle.delivrance)
+  return Math.max(0, RITALINE_DUREE - Math.max(0, retard - RITALINE_DELAI_RETRAIT))
+}
+
+export interface RitalineStatus {
+  annuelle: {
+    debut: string; fin: string
+    months: number; days: number
+    rdvAPartirDe: string    // fin − 4 mois
+    warning: boolean        // fenêtre de renouvellement atteinte
+    expiree: boolean
+  } | null
+  cycle: {
+    ordonnance:       string
+    delivrance:       string | null
+    retard:           number | null
+    gelules:          number | null
+    limiteRetrait:    string | null   // ordonnance + 3 (si pas encore délivré)
+    joursAvantPerte:  number | null
+    finTraitement:    string | null   // délivrance + 27 (28ᵉ jour)
+    retraitAuPlusTot: string | null   // délivrance + 28
+    retraitConseille: string | null   // 1er jour sûr ≥ auPlusTot
+    retraitDecale:    boolean         // conseillé ≠ au plus tôt
+    fenetreRdv:       [string, string] | null
+  } | null
+  prochainRdv:       string | null
+  rdvVerdict:        'ok' | 'tot' | 'tard' | null
+  rdvGelulesPerdues: number
+  rdvRetraitPrevu:   string | null    // retrait résultant du RDV noté
+  stock: {
+    restant:     number
+    rythme:      number         // cachets / jour observés (28 derniers jours)
+    finAuPire:   string | null  // dernier jour couvert à 1 cachet/jour
+    finAuRythme: string | null  // dernier jour couvert au rythme observé
+  } | null
+}
+
+/**
+ * Synthèse de la gestion ritaline : échéance de l'ordonnance annuelle,
+ * cycle en cours, fenêtre de prise de RDV et stock résiduel.
+ */
+export function calcRitalineStatus(settings: Settings): RitalineStatus {
+  const today  = getDateStr()
+  const cycles = settings.ritalineCycles ?? []
+
+  // ── Ordonnance annuelle ────────────────────────────────────────────────
+  let annuelle: RitalineStatus['annuelle'] = null
+  if (settings.ritalineOrdonnanceInitiale) {
+    const debut = settings.ritalineOrdonnanceInitiale
+    const fin   = addMonths(debut, 12)
+    const { months, days } = monthsAndDays(today, fin)
+    const rdvAPartirDe = addMonths(fin, -4)
+    annuelle = {
+      debut, fin, months, days, rdvAPartirDe,
+      warning: today >= rdvAPartirDe && today < fin,
+      expiree: today >= fin,
+    }
+  }
+
+  // ── Cycle en cours (le plus récent) ────────────────────────────────────
+  let cycle: RitalineStatus['cycle'] = null
+  const last = cycles.length > 0 ? cycles[cycles.length - 1] : null
+  if (last) {
+    const delivrance = last.delivrance ?? null
+    const retard     = delivrance ? daysBetween(last.ordonnance, delivrance) : null
+    const limite     = delivrance ? null : addDays(last.ordonnance, RITALINE_DELAI_RETRAIT)
+
+    let finTraitement: string | null = null
+    let auPlusTot:     string | null = null
+    let conseille:     string | null = null
+    let fenetreRdv:    [string, string] | null = null
+
+    if (delivrance) {
+      finTraitement = addDays(delivrance, RITALINE_DUREE - 1)
+      auPlusTot     = addDays(delivrance, RITALINE_DUREE)
+      conseille     = nextSafePickupDay(auPlusTot)
+      // L'ordonnance doit avoir ≤ 3 jours le jour du retrait
+      fenetreRdv    = [addDays(conseille, -RITALINE_DELAI_RETRAIT), conseille]
+    }
+
+    cycle = {
+      ordonnance: last.ordonnance,
+      delivrance, retard,
+      gelules: ritalineGelules(last),
+      limiteRetrait:   limite,
+      joursAvantPerte: limite ? daysBetween(today, limite) : null,
+      finTraitement,
+      retraitAuPlusTot: auPlusTot,
+      retraitConseille: conseille,
+      retraitDecale:    !!auPlusTot && conseille !== auPlusTot,
+      fenetreRdv,
+    }
+  }
+
+  // ── Prochain RDV vs fenêtre idéale ─────────────────────────────────────
+  const prochainRdv = last?.prochainRdv ?? null
+  let rdvVerdict: RitalineStatus['rdvVerdict'] = null
+  let rdvGelulesPerdues = 0
+  let rdvRetraitPrevu: string | null = null
+
+  if (prochainRdv && cycle?.fenetreRdv && cycle.retraitAuPlusTot) {
+    const [min, max] = cycle.fenetreRdv
+    if (prochainRdv < min) {
+      rdvVerdict = 'tot'
+      // Le retrait ne peut pas avoir lieu avant le 28ᵉ jour : l'ordonnance vieillit
+      rdvRetraitPrevu   = cycle.retraitConseille
+      const age         = daysBetween(prochainRdv, cycle.retraitAuPlusTot)
+      rdvGelulesPerdues = Math.max(0, age - RITALINE_DELAI_RETRAIT)
+    } else if (prochainRdv > max) {
+      rdvVerdict      = 'tard'
+      rdvRetraitPrevu = nextSafePickupDay(prochainRdv)
+    } else {
+      rdvVerdict      = 'ok'
+      rdvRetraitPrevu = nextSafePickupDay(maxDate(prochainRdv, cycle.retraitAuPlusTot))
+    }
+  }
+
+  // ── Stock ──────────────────────────────────────────────────────────────
+  let stock: RitalineStatus['stock'] = null
+  if (settings.ritalineStockDate && settings.ritalineStockInitial != null) {
+    const start  = settings.ritalineStockDate
+    const prises = Object.entries(settings.ritaline ?? {})
+      .filter(([d, v]) => v && d >= start && d <= today).length
+    // Les délivrances postérieures au relevé rechargent le stock
+    const recu = cycles
+      .filter(c => c.delivrance && c.delivrance > start && c.delivrance <= today)
+      .reduce((a, c) => a + (ritalineGelules(c) ?? 0), 0)
+    const restant = Math.max(0, settings.ritalineStockInitial - prises + recu)
+
+    // Rythme observé sur les 28 derniers jours (borné au début du suivi)
+    const winStart  = maxDate(addDays(today, -(RITALINE_DUREE - 1)), start)
+    const winDays   = Math.max(1, daysBetween(winStart, today) + 1)
+    const winPrises = Object.entries(settings.ritaline ?? {})
+      .filter(([d, v]) => v && d >= winStart && d <= today).length
+    const rythme = winPrises / winDays
+
+    stock = {
+      restant, rythme,
+      finAuPire:   restant > 0 ? addDays(today, restant - 1) : null,
+      finAuRythme: restant > 0 && rythme > 0
+        ? addDays(today, Math.floor(restant / rythme) - 1)
+        : null,
+    }
+  }
+
+  return { annuelle, cycle, prochainRdv, rdvVerdict, rdvGelulesPerdues, rdvRetraitPrevu, stock }
+}
+
+function maxDate(a: string, b: string): string { return a >= b ? a : b }

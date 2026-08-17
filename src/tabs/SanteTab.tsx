@@ -3,6 +3,7 @@ import type { Store } from '../store'
 import type { Session } from '../types'
 import { DAY_FEEL_OPTIONS } from '../constants'
 import StatsModal from '../components/StatsModal'
+import RitalineCard from '../components/RitalineCard'
 import {
   calcVitals, calcDailyCharge, chargeZone, chargeZoneColor,
   getDateStr, getDatesInRange, getWeekRange, isWeekend,
@@ -176,6 +177,9 @@ export default function SanteTab({ store, now }: Props) {
         </div>
       </div>
 
+      {/* ── Gestion ritaline ─────────────────────────────────────────────── */}
+      <RitalineCard store={store} />
+
       {/* ── Hydratation ──────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
@@ -319,6 +323,14 @@ function GuideCard() {
             <br />• 2 jours négatifs d'affilée + ritaline prise → <strong>forte</strong> (« arrêter »)
             <br />• 3 jours négatifs ou plus → <strong>absolue</strong> (« stopper immédiatement »)
             <br />Le bandeau disparaît dès qu'un jour plus récent est noté non-négatif.
+          </p>
+          <p>
+            📋 <strong>Gestion ritaline</strong> — Suit l'ordonnance annuelle (alerte 4 mois avant
+            l'échéance) et chaque cycle de 28 jours. Le retrait doit avoir lieu dans les 3 jours
+            suivant l'ordonnance, sinon −1 gélule par jour de retard. Le retrait suivant n'est
+            possible que 28 jours après le précédent : la fenêtre de RDV et un jour de retrait sûr
+            (pharmacie ouverte, avec un jour de repli le lendemain) sont calculés automatiquement.
+            Le stock se décrémente à chaque jour marqué 💊.
           </p>
           <p>
             📊 <strong>Statistiques</strong> — Bouton en haut : humeur moyenne du mois,
